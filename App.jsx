@@ -602,7 +602,7 @@ function EventosTab({ events, today, screen, setScreen, isAdmin, songs, members,
         <div className="empty">
           <Calendar size={28} color="#5b628f" />
           <p>{subtab === "proximos" ? "No hay eventos cargados." : "No hay eventos pasados."}</p>
-          {isAdmin && subtab === "proximos" && <button className="primary-btn" onClick={() => setScreen({ mode: "form", id: null })}><Plus size={16} /> Crear evento</button>}
+          {subtab === "proximos" && <button className="primary-btn" onClick={() => setScreen({ mode: "form", id: null })}><Plus size={16} /> Crear evento</button>}
         </div>
       )}
       <div className="grid">
@@ -628,7 +628,7 @@ function EventosTab({ events, today, screen, setScreen, isAdmin, songs, members,
           );
         })}
       </div>
-      {isAdmin && <button className="fab" onClick={() => setScreen({ mode: "form", id: null })}><Plus size={24} /></button>}
+      <button className="fab" onClick={() => setScreen({ mode: "form", id: null })}><Plus size={24} /></button>
     </div>
   );
 }
@@ -656,7 +656,7 @@ function EventDetail({ ev, songs, members, isAdmin, me, attendance, onBack, onEd
         <div className="detail-body">
           <div className="detail-top">
             <span className="badge" style={{ background: t.color + "26", color: t.color, borderColor: t.color + "66" }}>{t.label}</span>
-            {isAdmin && <div className="icon-row"><button className="icon-btn" onClick={onEdit}><Pencil size={15} /></button><button className="icon-btn" onClick={onDelete}><Trash2 size={15} /></button></div>}
+            <div className="icon-row"><button className="icon-btn" onClick={onEdit}><Pencil size={15} /></button><button className="icon-btn" onClick={onDelete}><Trash2 size={15} /></button></div>
           </div>
           <h2>{ev.title}</h2>
           <div className="meta"><Calendar size={14} /> {fmtDate(ev.date)} {ev.time && <>· <Clock size={13} /> {ev.time} hs</>}</div>
@@ -839,7 +839,7 @@ function CancionesTab({ songs, screen, setScreen, isAdmin, onSave, onDelete }) {
     <div>
       <input className="input" placeholder="Buscar canción…" value={q} onChange={(e) => setQ(e.target.value)} style={{ marginBottom: 16 }} />
       {filtered.length === 0 && (
-        <div className="empty"><ListMusic size={28} color="#5b628f" /><p>No hay canciones cargadas.</p>{isAdmin && <button className="primary-btn" onClick={() => setScreen({ mode: "form", id: null })}><Plus size={16} /> Agregar canción</button>}</div>
+        <div className="empty"><ListMusic size={28} color="#5b628f" /><p>No hay canciones cargadas.</p><button className="primary-btn" onClick={() => setScreen({ mode: "form", id: null })}><Plus size={16} /> Agregar canción</button></div>
       )}
       <div className="song-list">
         {filtered.map((s) => (
@@ -852,7 +852,7 @@ function CancionesTab({ songs, screen, setScreen, isAdmin, onSave, onDelete }) {
           </div>
         ))}
       </div>
-      {isAdmin && filtered.length > 0 && <button className="fab" onClick={() => setScreen({ mode: "form", id: null })}><Plus size={24} /></button>}
+      {filtered.length > 0 && <button className="fab" onClick={() => setScreen({ mode: "form", id: null })}><Plus size={24} /></button>}
     </div>
   );
 }
@@ -868,7 +868,7 @@ function SongDetail({ song, isAdmin, onBack, onEdit, onDelete }) {
         <div className="detail-body">
           <div className="detail-top">
             <span className="badge" style={{ background: "#7C93C726", color: "#7C93C7", borderColor: "#7C93C766" }}>Canción</span>
-            {isAdmin && <div className="icon-row"><button className="icon-btn" onClick={onEdit}><Pencil size={15} /></button><button className="icon-btn" onClick={onDelete}><Trash2 size={15} /></button></div>}
+            <div className="icon-row"><button className="icon-btn" onClick={onEdit}><Pencil size={15} /></button><button className="icon-btn" onClick={onDelete}><Trash2 size={15} /></button></div>
           </div>
           <h2>{song.title}</h2>
           <div className="meta">{song.bpm && <span>{song.bpm} BPM</span>}{song.structure && <span>· {song.structure}</span>}</div>
