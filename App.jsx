@@ -3,9 +3,12 @@ import {
   Music, Calendar, MapPin, Clock, Users, Plus, X, Check, HelpCircle, Lock, Unlock,
   Trash2, Pencil, ListMusic, Link as LinkIcon, ArrowLeft, Home, FolderOpen,
   ArrowUpCircle, ArrowDownCircle, Megaphone, ChevronRight, FileText,
-  Headphones, Video, Paperclip, Star, CalendarDays,
+  Headphones, Video, Paperclip, Star, CalendarDays, LogOut, Copy, ChevronDown, UserPlus,
 } from "lucide-react";
-import { kvGet, kvSet } from "./supabaseClient";
+import {
+  supabase, kvGet, kvSet, signInWithGoogle, signOut,
+  createTeam, joinTeamByCode, getUserTeams, saveUserTeams,
+} from "./supabaseClient";
 
 const FONTS = `@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,500&family=Work+Sans:wght@400;500;600;700&display=swap');`;
 
@@ -54,70 +57,131 @@ function renderChordLine(text) {
   });
 }
 
-function useShared(key, fallback) {
+function useShared(key, fallback, enabled = true) {
   const [val, setVal] = useState(fallback);
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] = useState(!enabled);
   useEffect(() => {
+    if (!enabled) { setVal(fallback); setLoaded(false); return; }
+    let cancelled = false;
     (async () => {
-      try { const r = await kvGet(key); setVal(r !== null && r !== undefined ? r : fallback); }
-      catch (e) { console.error(e); setVal(fallback); }
-      setLoaded(true);
+      try { const r = await kvGet(key); if (!cancelled) setVal(r !== null && r !== undefined ? r : fallback); }
+      catch (e) { console.error(e); if (!cancelled) setVal(fallback); }
+      if (!cancelled) setLoaded(true);
     })();
-  }, [key]);
+    return () => { cancelled = true; };
+    // eslint-disable-next-line
+  }, [key, enabled]);
   const save = useCallback(async (next) => {
     setVal(next);
+    if (!enabled) return;
     try { await kvSet(key, next); } catch (e) { console.error(e); }
-  }, [key]);
+    // eslint-disable-next-line
+  }, [key, enabled]);
   return [val, save, loaded];
 }
 
 export default function Afina() {
-  const [team, setTeam] = useShared("team", null);
-  const [events, setEvents] = useShared("events", []);
-  const [songs, setSongs] = useShared("songs", []);
-  const [members, setMembers] = useShared("members", []);
-  const [avisos, setAvisos] = useShared("avisos", []);
-  const [resources, setResources] = useShared("resources", []);
-  const [config, setConfig, configLoaded] = useShared("config", { pin: "1234" });
-  const [attendance, setAttendance] = useState({});
-
-  const [me, setMe] = useState("");
-  const [meLoaded, setMeLoaded] = useState(false);
+  // ---------- sesión (Google) ----------
+  const [session, setSession] = useState(undefined); // undefined = cargando, null = sin sesión
   useEffect(() => {
-    try { setMe(localStorage.getItem("afina_me") || ""); } catch {}
-    setMeLoaded(true);
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data: listener } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
+    return () => listener.subscription.unsubscribe();
   }, []);
-  async function saveMe(name) { setMe(name); try { localStorage.setItem("afina_me", name); } catch {} }
+  const user = session?.user || null;
+  const me = user ? (user.user_metadata?.full_name || user.user_metadata?.name || user.email || "Sin nombre") : "";
+
+  // ---------- equipos del usuario ----------
+  const [myTeams, setMyTeams] = useState(null); // null = cargando
+  const [currentTeamId, setCurrentTeamId] = useState(() => { try { return localStorage.getItem("afina_team_id") || null; } catch { return null; } });
+  const [teamErr, setTeamErr] = useState("");
+
+  useEffect(() => {
+    if (!user) { setMyTeams(null); return; }
+    (async () => {
+      try {
+        const teams = await getUserTeams(user.id);
+        setMyTeams(teams);
+        if (!currentTeamId && teams.length === 1) selectTeam(teams[0].id);
+      } catch (e) { console.error(e); setMyTeams([]); }
+    })();
+    // eslint-disable-next-line
+  }, [user]);
+
+  function selectTeam(id) {
+    setCurrentTeamId(id);
+    try { localStorage.setItem("afina_team_id", id); } catch {}
+  }
+  function switchTeam() {
+    setCurrentTeamId(null);
+    try { localStorage.removeItem("afina_team_id"); } catch {}
+  }
+  async function handleCreateTeam(name) {
+    setTeamErr("");
+    try {
+      const team = await createTeam(name);
+      const next = [...(myTeams || []), team];
+      await saveUserTeams(user.id, next);
+      setMyTeams(next);
+      selectTeam(team.id);
+    } catch (e) { console.error(e); setTeamErr("No se pudo crear el equipo. Probá de nuevo."); }
+  }
+  async function handleJoinTeam(code) {
+    setTeamErr("");
+    try {
+      const clean = code.trim().toUpperCase();
+      const found = await joinTeamByCode(clean);
+      if (!found) { setTeamErr("Ese código no existe. Revisalo con quien te lo pasó."); return; }
+      const already = (myTeams || []).some((t) => t.id === found.id);
+      const next = already ? myTeams : [...(myTeams || []), { ...found, code: clean }];
+      if (!already) { await saveUserTeams(user.id, next); setMyTeams(next); }
+      selectTeam(found.id);
+    } catch (e) { console.error(e); setTeamErr("No se pudo unir al equipo. Probá de nuevo."); }
+  }
+  async function handleSignOut() { await signOut(); switchTeam(); }
+
+  const currentTeam = (myTeams || []).find((t) => t.id === currentTeamId) || null;
+  const tk = currentTeamId;
+  const teamReady = !!tk;
+  const tkey = (name) => `team:${tk}:${name}`;
+
+  // ---------- datos del equipo (solo se cargan cuando hay equipo elegido) ----------
+  const [events, setEvents] = useShared(tk ? tkey("events") : "noop:events", [], teamReady);
+  const [songs, setSongs] = useShared(tk ? tkey("songs") : "noop:songs", [], teamReady);
+  const [members, setMembers] = useShared(tk ? tkey("members") : "noop:members", [], teamReady);
+  const [avisos, setAvisos] = useShared(tk ? tkey("avisos") : "noop:avisos", [], teamReady);
+  const [resources, setResources] = useShared(tk ? tkey("resources") : "noop:resources", [], teamReady);
+  const [config, setConfig, configLoaded] = useShared(tk ? tkey("config") : "noop:config", { pin: "1234" }, teamReady);
+  const [attendance, setAttendance] = useState({});
 
   const [isAdmin, setIsAdmin] = useState(false);
   const [tab, setTab] = useState("inicio");
   const [screen, setScreen] = useState({ mode: "list", id: null });
   const [modal, setModal] = useState(null);
-  const [pendingAfterMe, setPendingAfterMe] = useState(null);
   const [err, setErr] = useState("");
 
-  const loading = !configLoaded || !meLoaded;
+  const loading = teamReady && !configLoaded;
 
   useEffect(() => { setScreen({ mode: "list", id: null }); }, [tab]);
+  useEffect(() => { setIsAdmin(false); setTab("inicio"); }, [tk]);
 
   const loadAttendance = useCallback(async (eventId) => {
-    try { const r = await kvGet("attendance:" + eventId); setAttendance((p) => ({ ...p, [eventId]: r || {} })); }
+    if (!tk) return;
+    try { const r = await kvGet(tkey("attendance:" + eventId)); setAttendance((p) => ({ ...p, [eventId]: r || {} })); }
     catch (e) { console.error(e); setAttendance((p) => ({ ...p, [eventId]: {} })); }
-  }, []);
+    // eslint-disable-next-line
+  }, [tk]);
   async function saveAttendance(eventId, next) {
     setAttendance((p) => ({ ...p, [eventId]: next }));
-    try { await kvSet("attendance:" + eventId, next); } catch (e) { console.error(e); setErr("No se pudo guardar tu respuesta."); }
+    try { await kvSet(tkey("attendance:" + eventId), next); } catch (e) { console.error(e); setErr("No se pudo guardar tu respuesta."); }
   }
   useEffect(() => {
+    if (!teamReady) return;
     events.forEach((e) => { if (!(e.id in attendance)) loadAttendance(e.id); });
     // eslint-disable-next-line
-  }, [events]);
+  }, [events, teamReady]);
 
-  function requireMe(after) {
-    if (me) { after(me); return; }
-    setPendingAfterMe(() => after);
-    setModal("me");
-  }
+  function requireMe(after) { after(me); }
   function tryAdmin() {
     if (isAdmin) { setIsAdmin(false); return; }
     setModal("pin");
@@ -188,10 +252,27 @@ export default function Afina() {
   async function addAviso(text) { await setAvisos([{ id: uid(), text, date: new Date().toISOString() }, ...avisos]); }
   async function removeAviso(id) { await setAvisos(avisos.filter((a) => a.id !== id)); }
 
-  if (loading) {
+  if (session === undefined || (user && myTeams === null) || loading) {
     return (
       <div className="afina-app"><style>{FONTS}</style><style>{CSS}</style>
         <div className="loading">Afinando los instrumentos…</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="afina-app"><style>{FONTS}</style><style>{CSS}</style>
+        <LoginScreen onGoogle={signInWithGoogle} />
+      </div>
+    );
+  }
+
+  if (!currentTeamId) {
+    return (
+      <div className="afina-app"><style>{FONTS}</style><style>{CSS}</style>
+        <TeamGate me={me} teams={myTeams || []} err={teamErr}
+          onSelect={selectTeam} onCreate={handleCreateTeam} onJoin={handleJoinTeam} onSignOut={handleSignOut} />
       </div>
     );
   }
@@ -202,16 +283,14 @@ export default function Afina() {
       <style>{CSS}</style>
 
       <header className="header">
-        <div className="brand"><Music size={21} color="#E4B75B" /><span>{team?.name || "Afiná"}</span></div>
+        <TeamMenu team={currentTeam} teams={myTeams} me={me} onSwitch={switchTeam} onSelect={selectTeam} onSignOut={handleSignOut} />
         <button className="admin-btn" onClick={tryAdmin}>{isAdmin ? <Unlock size={15} /> : <Lock size={15} />}<span>{isAdmin ? "Admin" : "Ingresar"}</span></button>
       </header>
 
       {err && <div className="err-banner" onClick={() => setErr("")}>{err}</div>}
 
       <main className="main">
-        {!team && tab === "inicio" && <TeamSetup onCreate={(name) => setTeam({ name })} />}
-
-        {team && tab === "inicio" && (
+        {tab === "inicio" && (
           <Inicio
             proximoEvento={proximoEvento} attendance={attendance[proximoEvento?.id] || {}}
             me={me} members={members} songs={songs} avisos={avisos} isAdmin={isAdmin}
@@ -252,14 +331,6 @@ export default function Afina() {
         <NavBtn icon={Users} label="Equipo" active={tab === "equipo"} onClick={() => setTab("equipo")} />
         <NavBtn icon={FolderOpen} label="Recursos" active={tab === "recursos"} onClick={() => setTab("recursos")} />
       </nav>
-
-      {modal === "me" && (
-        <Modal onClose={() => setModal(null)}>
-          <h3 className="modal-title">¿Cómo te llamás?</h3>
-          <p className="modal-sub">Lo recordamos en este dispositivo para tus confirmaciones y asignaciones.</p>
-          <NameForm onSubmit={(name) => { saveMe(name); setModal(null); pendingAfterMe && pendingAfterMe(name); setPendingAfterMe(null); }} />
-        </Modal>
-      )}
 
       {modal === "pin" && (
         <Modal onClose={() => setModal(null)}>
@@ -323,15 +394,97 @@ function PinForm({ config, onOk, onSaveConfig, isAdmin }) {
   );
 }
 
-function TeamSetup({ onCreate }) {
-  const [name, setName] = useState("");
+function LoginScreen({ onGoogle }) {
   return (
     <div className="team-setup">
       <Music size={34} color="#E4B75B" />
-      <h2>Creá tu equipo</h2>
-      <p>Ponele un nombre a tu grupo de alabanza o ministerio de música para empezar.</p>
-      <input className="input" placeholder="Ej: Alabanza Central" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && name.trim() && onCreate(name.trim())} />
-      <button className="primary-btn" onClick={() => name.trim() && onCreate(name.trim())}><Plus size={16} /> Crear equipo</button>
+      <h2>Afiná</h2>
+      <p>Organizá los eventos y músicos de tu grupo. Iniciá sesión con tu cuenta de Google para empezar.</p>
+      <button className="primary-btn" onClick={onGoogle}><Users size={16} /> Continuar con Google</button>
+    </div>
+  );
+}
+
+function TeamGate({ me, teams, err, onSelect, onCreate, onJoin, onSignOut }) {
+  const [mode, setMode] = useState("create");
+  const [name, setName] = useState("");
+  const [code, setCode] = useState("");
+  return (
+    <div className="team-setup">
+      <Music size={34} color="#E4B75B" />
+      <h2>Hola, {me.split(" ")[0]}</h2>
+
+      {teams.length > 0 && (
+        <>
+          <p>Elegí tu equipo:</p>
+          <div className="team-pick-list">
+            {teams.map((t) => (
+              <button key={t.id} className="team-pick-row" onClick={() => onSelect(t.id)}>
+                <Music size={15} color="#E4B75B" /> {t.name}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      <div className="team-gate-tabs">
+        <button className={"tab" + (mode === "create" ? " active" : "")} onClick={() => setMode("create")}><Plus size={13} /> Crear equipo</button>
+        <button className={"tab" + (mode === "join" ? " active" : "")} onClick={() => setMode("join")}><UserPlus size={13} /> Unirme con código</button>
+      </div>
+
+      {mode === "create" && (
+        <>
+          <p>Ponele un nombre a tu grupo de alabanza o ministerio de música.</p>
+          <input className="input" placeholder="Ej: Alabanza Central" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => e.key === "Enter" && name.trim() && onCreate(name.trim())} />
+          <button className="primary-btn" onClick={() => name.trim() && onCreate(name.trim())}><Plus size={16} /> Crear equipo</button>
+        </>
+      )}
+      {mode === "join" && (
+        <>
+          <p>Pedile a tu admin el código de invitación del equipo.</p>
+          <input className="input" placeholder="Ej: A3F9K2" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} onKeyDown={(e) => e.key === "Enter" && code.trim() && onJoin(code)} />
+          <button className="primary-btn" onClick={() => code.trim() && onJoin(code)}><UserPlus size={16} /> Unirme</button>
+        </>
+      )}
+      {err && <div className="pin-error">{err}</div>}
+
+      <button className="secondary-btn" style={{ marginTop: 20 }} onClick={onSignOut}><LogOut size={14} /> Cerrar sesión</button>
+    </div>
+  );
+}
+
+function TeamMenu({ team, teams, me, onSwitch, onSelect, onSignOut }) {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  function copyCode() {
+    try { navigator.clipboard.writeText(team.code); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch {}
+  }
+  return (
+    <div className="team-menu-wrap">
+      <button className="brand" onClick={() => setOpen(!open)}>
+        <Music size={21} color="#E4B75B" /><span>{team?.name || "Afiná"}</span><ChevronDown size={15} />
+      </button>
+      {open && (
+        <div className="team-menu-dropdown" onMouseLeave={() => setOpen(false)}>
+          <div className="team-menu-section">
+            <div className="label">Código de invitación</div>
+            <div className="team-code-row" onClick={copyCode}>
+              <span>{team?.code}</span><Copy size={13} />
+            </div>
+            {copied && <div className="team-copied">¡Copiado!</div>}
+          </div>
+          {teams.length > 1 && (
+            <div className="team-menu-section">
+              <div className="label">Tus equipos</div>
+              {teams.map((t) => (
+                <button key={t.id} className="team-menu-item" onClick={() => { onSelect(t.id); setOpen(false); }}>{t.name}</button>
+              ))}
+            </div>
+          )}
+          <button className="team-menu-item" onClick={onSwitch}><Plus size={14} /> Crear o unirme a otro equipo</button>
+          <button className="team-menu-item" onClick={onSignOut}><LogOut size={14} /> Cerrar sesión ({me.split(" ")[0]})</button>
+        </div>
+      )}
     </div>
   );
 }
@@ -791,7 +944,7 @@ function SongForm({ initial, onCancel, onSave }) {
 function EquipoTab({ members, screen, setScreen, isAdmin, me, onSave, onDelete, requireMe }) {
   if (screen.mode === "form") {
     const m = screen.id ? members.find((x) => x.id === screen.id) : null;
-    return <MemberForm initial={m} onCancel={() => setScreen({ mode: "list", id: null })} onSave={onSave} />;
+    return <MemberForm initial={m} me={me} onCancel={() => setScreen({ mode: "list", id: null })} onSave={onSave} />;
   }
   const canEdit = (m) => isAdmin || m.name === me;
   return (
@@ -824,8 +977,8 @@ function EquipoTab({ members, screen, setScreen, isAdmin, me, onSave, onDelete, 
   );
 }
 
-function MemberForm({ initial, onCancel, onSave }) {
-  const [name, setName] = useState(initial?.name || "");
+function MemberForm({ initial, me, onCancel, onSave }) {
+  const [name] = useState(initial?.name || me || "");
   const [voice, setVoice] = useState(initial?.voice || "");
   const [instruments, setInstruments] = useState(initial?.instruments || []);
   const [instDraft, setInstDraft] = useState("");
@@ -845,7 +998,8 @@ function MemberForm({ initial, onCancel, onSave }) {
       <button className="back-btn" onClick={onCancel}><ArrowLeft size={16} /> Cancelar</button>
       <h2 className="form-title">{initial ? "Editar músico" : "Sumarme al equipo"}</h2>
       <label className="label">Nombre</label>
-      <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Nombre y apellido" disabled={!!initial} />
+      <input className="input" value={name} placeholder="Nombre y apellido" disabled />
+      <p className="hint">Este es el nombre de tu cuenta de Google, no se puede cambiar acá.</p>
       <label className="label">Voz</label>
       <div className="type-row">
         {["principal", "coro"].map((v) => (
@@ -946,6 +1100,18 @@ const CSS = `
   .loading { text-align:center; padding:60px; color:#9aa2c9; font-family:'Fraunces',serif; font-size:18px; }
   .team-setup { text-align:center; padding:50px 20px; display:flex; flex-direction:column; align-items:center; gap:10px; }
   .team-setup .input { max-width:280px; margin-top:12px; }
+  .team-pick-list { display:flex; flex-direction:column; gap:8px; width:100%; max-width:320px; margin-top:6px; }
+  .team-pick-row { display:flex; align-items:center; gap:8px; background:#232853; color:#EDEBFA; padding:12px 16px; border-radius:10px; font-size:14px; font-weight:600; width:100%; justify-content:center; }
+  .team-gate-tabs { display:flex; gap:6px; margin:18px 0 4px; background:#232853; padding:4px; border-radius:12px; }
+  .team-gate-tabs .tab { display:flex; align-items:center; gap:5px; }
+  .team-menu-wrap { position:relative; }
+  .team-menu-wrap .brand { display:flex; align-items:center; gap:8px; }
+  .team-menu-dropdown { position:absolute; top:calc(100% + 8px); left:0; background:#232853; border:1px solid #3a4066; border-radius:12px; min-width:240px; padding:10px; z-index:50; box-shadow:0 10px 24px rgba(0,0,0,0.4); }
+  .team-menu-section { padding:6px 8px 12px; border-bottom:1px solid #3a3f66; margin-bottom:6px; }
+  .team-code-row { display:flex; align-items:center; justify-content:space-between; background:#1B1F3B; padding:8px 10px; border-radius:8px; font-family:'Fraunces',serif; font-weight:700; letter-spacing:1px; color:#E4B75B; cursor:pointer; }
+  .team-copied { font-size:11px; color:#8FB88F; margin-top:4px; }
+  .team-menu-item { display:flex; align-items:center; gap:8px; width:100%; text-align:left; padding:9px 8px; border-radius:8px; font-size:13px; color:#EDEBFA; }
+  .team-menu-item:hover { background:#1B1F3B; }
   .tabs { display:flex; gap:6px; margin-bottom:18px; background:#232853; padding:4px; border-radius:12px; width:fit-content; }
   .tabs.wrap { flex-wrap:wrap; width:100%; }
   .tab { padding:8px 16px; border-radius:9px; color:#9aa2c9; font-size:13px; font-weight:600; }
