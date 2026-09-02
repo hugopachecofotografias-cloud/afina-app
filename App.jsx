@@ -4,7 +4,7 @@ import {
   Trash2, Pencil, ListMusic, Link as LinkIcon, ArrowLeft, Home, FolderOpen,
   ArrowUpCircle, ArrowDownCircle, Megaphone, ChevronRight, FileText,
   Headphones, Video, Paperclip, Star, CalendarDays, LogOut, Copy, ChevronDown, UserPlus,
-  MessageCircle, Mail, Presentation, Play, Square,
+  MessageCircle, Mail, Presentation, Play, Square, ClipboardPaste,
 } from "lucide-react";
 import {
   supabase, kvGet, kvSet, signInWithGoogle, signOut,
@@ -95,6 +95,82 @@ function sectionMeta(name) {
   for (const p of SECTION_PRESETS) if (p.match.some((m) => lower.startsWith(m))) return p;
   const abbr = (name || "??").trim().slice(0, 2).toUpperCase() || "??";
   return { abbr, color: "#9aa2c9" };
+}
+
+// ---------- importar un texto pegado (acordes arriba de la letra, como en
+// Cifra Club / Ultimate Guitar) y convertirlo a nuestro formato [Acorde]letra ----------
+const CHORD_TOKEN_RE = /^[A-G](#|b)?(maj|min|dim|aug|sus|add)?\d{0,2}m?\d{0,2}(\/[A-G](#|b)?)?$/i;
+const SECTION_HEADER_WORDS = [
+  "intro", "introdu", "verso", "estrofa", "pre-coro", "precoro", "pre-estribillo",
+  "preestribillo", "pré-refrão", "prerefrao", "refrão", "refrao", "coro", "estribillo",
+  "puente", "bridge", "interludio", "interlúdio", "final", "outro", "solo", "instrumental",
+];
+function isChordLine(line) {
+  const t = (line || "").trim();
+  if (!t) return false;
+  const tokens = t.split(/\s+/);
+  if (tokens.length > 14) return false;
+  const chordish = tokens.filter((tok) => CHORD_TOKEN_RE.test(tok));
+  return chordish.length / tokens.length >= 0.6;
+}
+function isSectionHeader(line) {
+  const t = (line || "").trim().toLowerCase().replace(/[():]/g, "").trim();
+  if (!t || isChordLine(line)) return false;
+  if (t.length > 24) return false;
+  return SECTION_HEADER_WORDS.some((w) => t === w || t.startsWith(w));
+}
+function mergeChordAndLyricLine(chordLine, lyricLine) {
+  const matches = [...chordLine.matchAll(/\S+/g)];
+  let result = "";
+  let cursor = 0;
+  matches.forEach((m) => {
+    const pos = m.index;
+    const chord = m[0];
+    result += lyricLine.slice(cursor, pos);
+    result += `[${chord}]`;
+    cursor = Math.max(cursor, pos);
+  });
+  result += lyricLine.slice(cursor);
+  return result;
+}
+function parsePastedChart(raw) {
+  const lines = (raw || "").replace(/\r\n/g, "\n").split("\n");
+  const sections = [];
+  let current = { id: uid(), name: "Letra", text: "" };
+  let buffer = [];
+  function flush() {
+    if (buffer.length) {
+      current.text = (current.text ? current.text + "\n" : "") + buffer.join("\n");
+      buffer = [];
+    }
+  }
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (isSectionHeader(line)) {
+      flush();
+      if (current.text.trim()) sections.push(current);
+      current = { id: uid(), name: line.trim().replace(/[():]/g, ""), text: "" };
+      i++;
+      continue;
+    }
+    if (isChordLine(line)) {
+      const next = lines[i + 1];
+      if (next !== undefined && !isChordLine(next) && !isSectionHeader(next)) {
+        buffer.push(mergeChordAndLyricLine(line, next));
+        i += 2;
+      } else {
+        buffer.push(line.trim().split(/\s+/).map((c) => `[${c}]`).join(" "));
+        i++;
+      }
+      continue;
+    }
+    buffer.push(line);
+    i++;
+  }
+  flush();
+  if (current.text.trim() || sections.length === 0) sections.push(current);
+  return sections;
 }
 
 
@@ -1375,12 +1451,20 @@ function SongForm({ initial, onCancel, onSave }) {
   const [links, setLinks] = useState(initial?.links || []);
   const [linkDraft, setLinkDraft] = useState({ label: "", url: "" });
   const [formErr, setFormErr] = useState("");
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteText, setPasteText] = useState("");
 
   function addSection() { setSections([...sections, { id: uid(), name: "Coro", text: "" }]); }
   function updateSection(id, patch) { setSections(sections.map((s) => (s.id === id ? { ...s, ...patch } : s))); }
   function removeSection(id) { setSections(sections.filter((s) => s.id !== id)); }
   function addLink() { if (!linkDraft.url.trim()) return; setLinks([...links, { ...linkDraft }]); setLinkDraft({ label: "", url: "" }); }
   function removeLink(i) { setLinks(links.filter((_, idx) => idx !== i)); }
+  function convertPaste() {
+    if (!pasteText.trim()) return;
+    setSections(parsePastedChart(pasteText));
+    setPasteText("");
+    setPasteOpen(false);
+  }
   function submit() {
     if (!title.trim()) { setFormErr("Poné al menos un título."); return; }
     onSave({ id: initial?.id, title: title.trim(), artist: artist.trim(), key: key.trim(), bpm: bpm.trim(), description: description.trim(), sections, links, favorite: initial?.favorite || false });
@@ -1403,6 +1487,20 @@ function SongForm({ initial, onCancel, onSave }) {
 
       <label className="label">Secciones</label>
       <p className="hint">Escribí los acordes entre corchetes en cada línea, ej: [G]Sublime [C]gracia. Usá nombres como Intro, Estrofa, Preestribillo, Coro, Interludio, Puente — así se colorean solos.</p>
+
+      {!pasteOpen ? (
+        <button className="secondary-btn" style={{ marginBottom: 12 }} onClick={() => setPasteOpen(true)}><ClipboardPaste size={15} /> Pegar desde otra página (autocompletar)</button>
+      ) : (
+        <div className="paste-box">
+          <p className="hint" style={{ marginTop: 0 }}>Copiá el texto de la página (con los acordes arriba de cada línea de letra) y pegalo acá. Convierte automático — después revisá que haya quedado bien.</p>
+          <textarea className="input textarea tall" value={pasteText} onChange={(e) => setPasteText(e.target.value)} placeholder={"Pegá acá el texto copiado…"} />
+          <div className="add-row" style={{ marginTop: 8 }}>
+            <button className="primary-btn" style={{ marginTop: 0 }} onClick={convertPaste}><ClipboardPaste size={15} /> Convertir automáticamente</button>
+            <button className="secondary-btn" onClick={() => { setPasteOpen(false); setPasteText(""); }}>Cancelar</button>
+          </div>
+        </div>
+      )}
+
       {sections.map((s) => {
         const m = sectionMeta(s.name);
         return (
@@ -1780,6 +1878,7 @@ const CSS = `
   .perf-chords { font-size:19px; }
   .perf-lyrics { font-size:19px; }
   .section-edit-block { background:#232853; border-radius:10px; padding:10px; margin-bottom:10px; }
+  .paste-box { background:#232853; border:1px dashed #3a4066; border-radius:10px; padding:12px; margin-bottom:14px; }
   .section-edit-head { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
   .links-list { display:flex; flex-direction:column; gap:8px; }
   .link-row { display:flex; align-items:center; gap:8px; color:#7C93C7; font-size:14px; text-decoration:none; background:#232853; padding:9px 12px; border-radius:9px; }
