@@ -336,6 +336,7 @@ export default function Afina() {
       <main className="main">
         {tab === "inicio" && (
           <Inicio
+            team={currentTeam} events={sortedEvents}
             proximoEvento={proximoEvento} attendance={attendance[proximoEvento?.id] || {}}
             me={me} members={members} songs={songs} avisos={avisos} isAdmin={isAdmin}
             onSetAttendance={(s) => proximoEvento && setMyAttendance(proximoEvento.id, s)}
@@ -551,10 +552,38 @@ function TeamMenu({ team, teams, me, onSwitch, onSelect, onSignOut }) {
   );
 }
 
-function Inicio({ proximoEvento, attendance, me, members, songs, avisos, isAdmin, onSetAttendance, onGoEvent, onAddAviso, onRemoveAviso }) {
+function Inicio({ team, events, proximoEvento, attendance, me, members, songs, avisos, isAdmin, onSetAttendance, onGoEvent, onAddAviso, onRemoveAviso }) {
   const myStatus = attendance[me];
   const myAvail = members.find((m) => m.name === me);
   const [avisoDraft, setAvisoDraft] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  const today = new Date();
+  const weekDays = useMemo(() => {
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(today);
+      d.setDate(today.getDate() + i);
+      return d;
+    });
+    // eslint-disable-next-line
+  }, []);
+  const [selectedDate, setSelectedDate] = useState(weekDays[0].toISOString().slice(0, 10));
+  const dayEvent = events.find((e) => e.date === selectedDate);
+  const daySetlist = useMemo(() => {
+    if (!dayEvent) return [];
+    return (dayEvent.setlist || []).map((s) => {
+      const song = songs.find((sg) => sg.id === s.songId);
+      return { ...s, title: song?.title || s.title, key: s.key || song?.key };
+    });
+  }, [dayEvent, songs]);
+
+  async function shareInvite() {
+    const text = `Sumate a "${team?.name}" en Afiná con el código: ${team?.code}`;
+    try {
+      if (navigator.share) { await navigator.share({ title: "Afiná", text }); return; }
+    } catch {}
+    try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch {}
+  }
 
   const songsToPrep = useMemo(() => {
     if (!proximoEvento) return [];
@@ -566,7 +595,56 @@ function Inicio({ proximoEvento, attendance, me, members, songs, avisos, isAdmin
 
   return (
     <div>
-      {proximoEvento ? (
+      <div className="home-grid">
+        <div className="card home-card">
+          <span className="home-card-label">Equipo actual</span>
+          <h3 className="home-card-title">{team?.name}</h3>
+          <span className="muted small">{members.length} miembro{members.length !== 1 ? "s" : ""}</span>
+        </div>
+        <div className="card home-card">
+          <span className="home-card-label">{fmtDate(selectedDate).split(",")[0]}</span>
+          <div className="week-strip">
+            {weekDays.map((d) => {
+              const iso = d.toISOString().slice(0, 10);
+              const wd = d.toLocaleDateString("es-AR", { weekday: "short" }).replace(".", "");
+              const hasEvent = events.some((e) => e.date === iso);
+              return (
+                <button key={iso} className={"week-day" + (iso === selectedDate ? " active" : "")} onClick={() => setSelectedDate(iso)}>
+                  <span className="week-day-wd">{wd}</span>
+                  <span className="week-day-num">{d.getDate()}</span>
+                  {hasEvent && <span className="week-day-dot" />}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {dayEvent && (
+        <div className="card day-repertoire">
+          <div className="home-card-label">Repertorio · {dayEvent.title}</div>
+          {daySetlist.length === 0 && <p className="muted small" style={{ marginTop: 6 }}>Todavía no se cargó el repertorio de este evento.</p>}
+          <div className="prep-list" style={{ marginTop: 8 }}>
+            {daySetlist.map((s) => (
+              <div key={s.id} className="prep-item">
+                <span className="prep-title">{s.title}</span>
+                {s.key && <span className="prep-key">{s.key}</span>}
+                {s.prepare && <span className="prep-flag">A sacar</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="invite-banner">
+        <div>
+          <div className="invite-banner-title">Invitá a tu equipo</div>
+          <p className="invite-banner-sub">Compartí el código y se suman en segundos.</p>
+        </div>
+        <button className="invite-banner-btn" onClick={shareInvite}><Copy size={14} /> {copied ? "¡Copiado!" : "Compartir código"}</button>
+      </div>
+
+      {proximoEvento && (
         <div className="card featured" onClick={onGoEvent}>
           <div className="featured-head" style={{ background: typeInfo(proximoEvento.type).color + "22" }}>
             <Star size={16} color={typeInfo(proximoEvento.type).color} /><span>Próximo evento</span>
@@ -582,8 +660,6 @@ function Inicio({ proximoEvento, attendance, me, members, songs, avisos, isAdmin
             </div>
           </div>
         </div>
-      ) : (
-        <div className="empty small"><Calendar size={22} color="#5b628f" /><p>No hay próximos eventos cargados.</p></div>
       )}
 
       <Section title="Tu disponibilidad" icon={<CalendarDays size={16} />}>
@@ -1350,6 +1426,22 @@ const CSS = `
   .featured-head { display:flex; align-items:center; gap:6px; padding:10px 16px; font-size:12px; font-weight:700; color:#EDEBFA; text-transform:uppercase; letter-spacing:.5px; }
   .featured-body { padding:14px 16px 18px; color:#2A2F55; }
   .featured-body h3 { font-size:20px; color:#1B1F3B; margin-bottom:6px; }
+  .home-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px; }
+  .home-card { padding:16px; background:#232853; border:1px solid #2E3358; }
+  .home-card-label { font-size:12px; color:#9aa2c9; font-weight:600; }
+  .home-card-title { font-family:'Fraunces',serif; font-size:20px; color:#FBF7EC; margin:6px 0 4px; }
+  .week-strip { display:flex; justify-content:space-between; gap:4px; margin-top:10px; }
+  .week-day { display:flex; flex-direction:column; align-items:center; gap:3px; padding:6px 4px; border-radius:10px; color:#c7cbe8; position:relative; flex:1; }
+  .week-day.active { background:#E4B75B; color:#1B1F3B; }
+  .week-day-wd { font-size:10px; text-transform:uppercase; opacity:.8; }
+  .week-day-num { font-size:15px; font-weight:700; }
+  .week-day-dot { width:4px; height:4px; border-radius:50%; background:#8FB88F; position:absolute; bottom:2px; }
+  .week-day.active .week-day-dot { background:#1B1F3B; }
+  .day-repertoire { padding:16px; margin-bottom:14px; background:#232853; border:1px solid #2E3358; }
+  .invite-banner { display:flex; align-items:center; justify-content:space-between; gap:14px; background:linear-gradient(135deg,#2E5FE0,#1B3FA8); border-radius:14px; padding:18px 20px; margin-bottom:14px; flex-wrap:wrap; }
+  .invite-banner-title { font-family:'Fraunces',serif; font-size:17px; font-weight:700; color:#fff; }
+  .invite-banner-sub { font-size:13px; color:#cfd8ff; margin-top:2px; }
+  .invite-banner-btn { display:flex; align-items:center; gap:7px; background:#fff; color:#1B3FA8; padding:9px 16px; border-radius:10px; font-size:13px; font-weight:700; white-space:nowrap; }
   .avail-row { display:flex; gap:6px; flex-wrap:wrap; }
   .avail-row.edit { margin-top:4px; }
   .avail-day { font-size:11px; font-weight:700; padding:6px 9px; border-radius:8px; background:#232853; color:#5b628f; }
@@ -1406,5 +1498,5 @@ const CSS = `
   .bottom-nav { position:fixed; bottom:0; left:0; right:0; background:#171a33; border-top:1px solid #2E3358; display:flex; justify-content:space-around; padding:8px 4px calc(8px + env(safe-area-inset-bottom)); z-index:30; }
   .nav-btn { display:flex; flex-direction:column; align-items:center; gap:3px; color:#6b7099; font-size:10px; font-weight:600; padding:4px 8px; border-radius:10px; }
   .nav-btn.active { color:#E4B75B; }
-  @media (max-width:480px){ .grid{ grid-template-columns:1fr; } .row2{ flex-direction:column; } }
+  @media (max-width:480px){ .grid{ grid-template-columns:1fr; } .row2{ flex-direction:column; } .home-grid{ grid-template-columns:1fr; } }
 `;
