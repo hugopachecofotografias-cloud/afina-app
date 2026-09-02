@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   Music, Calendar, MapPin, Clock, Users, Plus, X, Check, HelpCircle, Lock, Unlock,
   Trash2, Pencil, ListMusic, Link as LinkIcon, ArrowLeft, Home, FolderOpen,
   ArrowUpCircle, ArrowDownCircle, Megaphone, ChevronRight, FileText,
   Headphones, Video, Paperclip, Star, CalendarDays, LogOut, Copy, ChevronDown, UserPlus,
-  MessageCircle, Mail,
+  MessageCircle, Mail, Presentation, Play, Square,
 } from "lucide-react";
 import {
   supabase, kvGet, kvSet, signInWithGoogle, signOut,
@@ -998,6 +998,7 @@ function CancionesTab({ songs, screen, setScreen, isAdmin, onSave, onDelete }) {
 function SongDetail({ song, isAdmin, onBack, onEdit, onDelete }) {
   const [steps, setSteps] = useState(0);
   const [keyPicker, setKeyPicker] = useState(false);
+  const [perfMode, setPerfMode] = useState(false);
   const displayKey = steps ? transposeChordToken(song.key || "", steps) : (song.key || "");
   const keyQuality = (song.key || "").match(/^[A-G](?:#|b)?(.*)$/)?.[1] || "";
   const keyOptions = CHROMA_SHARP.map((n) => n + keyQuality);
@@ -1021,7 +1022,11 @@ function SongDetail({ song, isAdmin, onBack, onEdit, onDelete }) {
         <div className="detail-body">
           <div className="detail-top">
             <span className="badge" style={{ background: "#7C93C726", color: "#7C93C7", borderColor: "#7C93C766" }}>Canción</span>
-            <div className="icon-row"><button className="icon-btn" onClick={onEdit}><Pencil size={15} /></button><button className="icon-btn" onClick={onDelete}><Trash2 size={15} /></button></div>
+            <div className="icon-row">
+              <button className="icon-btn perf-trigger" onClick={() => setPerfMode(true)}><Presentation size={15} /> Modo directo</button>
+              <button className="icon-btn" onClick={onEdit}><Pencil size={15} /></button>
+              <button className="icon-btn" onClick={onDelete}><Trash2 size={15} /></button>
+            </div>
           </div>
           <h2>{song.title}</h2>
           <div className="meta">{song.bpm && <span>{song.bpm} BPM</span>}</div>
@@ -1088,6 +1093,86 @@ function SongDetail({ song, isAdmin, onBack, onEdit, onDelete }) {
           <div className="links-list">{song.links.map((l, i) => <a key={i} href={l.url} target="_blank" rel="noreferrer" className="link-row"><LinkIcon size={13} /> {l.label || l.url}</a>)}</div>
         </Section>
       )}
+
+      {perfMode && <PerformanceMode song={song} sections={sections} steps={steps} onClose={() => setPerfMode(false)} />}
+    </div>
+  );
+}
+
+function PerformanceMode({ song, sections, steps, onClose }) {
+  const [speed, setSpeed] = useState(1);
+  const [scrolling, setScrolling] = useState(false);
+  const containerRef = useRef(null);
+  const rafRef = useRef(null);
+  const refs = useMemo(() => sections.map(() => React.createRef()), [sections.length]);
+
+  useEffect(() => {
+    if (!scrolling) { if (rafRef.current) cancelAnimationFrame(rafRef.current); return; }
+    function step() {
+      if (containerRef.current) {
+        containerRef.current.scrollTop += 0.5 * speed;
+        const el = containerRef.current;
+        if (el.scrollTop + el.clientHeight >= el.scrollHeight - 2) setScrolling(false);
+      }
+      rafRef.current = requestAnimationFrame(step);
+    }
+    rafRef.current = requestAnimationFrame(step);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, [scrolling, speed]);
+
+  function jumpTo(i) { refs[i]?.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }
+
+  return (
+    <div className="perf-overlay">
+      <div className="perf-header">
+        <button className="perf-close" onClick={onClose}><X size={20} /></button>
+        <div className="perf-title">{song.title}{song.key ? ` · ${transposeChordToken(song.key, steps)}` : ""}</div>
+        <div className="perf-controls">
+          <select className="perf-speed" value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
+            <option value={0.5}>0.5x</option>
+            <option value={1}>1x</option>
+            <option value={1.5}>1.5x</option>
+            <option value={2}>2x</option>
+          </select>
+          <button className={"perf-scroll-btn" + (scrolling ? " active" : "")} onClick={() => setScrolling(!scrolling)}>
+            {scrolling ? <><Square size={14} /> Stop</> : <><Play size={14} /> Auto-scroll</>}
+          </button>
+        </div>
+      </div>
+
+      {sections.length > 0 && (
+        <div className="perf-section-nav">
+          {sections.map((s, i) => {
+            const m = sectionMeta(s.name);
+            return <button key={s.id} className="section-chip" style={{ borderColor: m.color, color: m.color }} onClick={() => jumpTo(i)}>{m.abbr}</button>;
+          })}
+        </div>
+      )}
+
+      <div className="perf-body" ref={containerRef}>
+        {sections.map((s, i) => {
+          const m = sectionMeta(s.name);
+          const text = transposeLyrics(s.text || "", steps);
+          return (
+            <div key={s.id} ref={refs[i]} className="section-block">
+              <span className="section-pill" style={{ background: m.color + "26", color: m.color, borderColor: m.color + "66" }}>
+                <span className="section-pill-abbr" style={{ borderColor: m.color }}>{m.abbr}</span> {s.name}
+              </span>
+              <div className="chordchart perf-chart">
+                {text.split("\n").map((line, li) => {
+                  const { chords, lyrics } = splitChordLine(line);
+                  return (
+                    <div key={li} className="chordchart-line">
+                      {chords.trim() && <div className="chordchart-chords perf-chords">{chords}</div>}
+                      <div className="chordchart-lyrics perf-lyrics">{lyrics || "\u00A0"}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -1483,6 +1568,20 @@ const CSS = `
   .chordchart-line { margin-bottom:4px; }
   .chordchart-chords { color:#E4B75B; font-weight:700; white-space:pre; line-height:1.2; }
   .chordchart-lyrics { color:#EDEBFA; white-space:pre; line-height:1.5; }
+  .perf-trigger { background:#E4B75B26; color:#E4B75B; padding:7px 12px; width:auto; gap:6px; font-size:12px; font-weight:700; }
+  .perf-overlay { position:fixed; inset:0; background:#0F1128; z-index:200; display:flex; flex-direction:column; }
+  .perf-header { display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid #2E3358; flex-wrap:wrap; }
+  .perf-close { background:#232853; color:#EDEBFA; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .perf-title { flex:1; font-family:'Fraunces',serif; font-size:17px; font-weight:700; color:#FBF7EC; min-width:120px; }
+  .perf-controls { display:flex; align-items:center; gap:8px; }
+  .perf-speed { background:#232853; color:#EDEBFA; border:1px solid #3a4066; border-radius:8px; padding:8px 10px; font-size:13px; font-weight:600; }
+  .perf-scroll-btn { display:flex; align-items:center; gap:6px; background:#E4B75B; color:#1B1F3B; padding:9px 14px; border-radius:9px; font-size:13px; font-weight:700; }
+  .perf-scroll-btn.active { background:#C97C87; color:#1B1F3B; }
+  .perf-section-nav { display:flex; gap:8px; overflow-x:auto; padding:10px 16px; border-bottom:1px solid #2E3358; flex-shrink:0; }
+  .perf-body { flex:1; overflow-y:auto; padding:20px 24px 60px; max-width:720px; margin:0 auto; width:100%; }
+  .perf-chart { background:transparent; padding:0; font-size:19px; }
+  .perf-chords { font-size:19px; }
+  .perf-lyrics { font-size:19px; }
   .section-edit-block { background:#232853; border-radius:10px; padding:10px; margin-bottom:10px; }
   .section-edit-head { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
   .links-list { display:flex; flex-direction:column; gap:8px; }
