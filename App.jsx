@@ -4,6 +4,7 @@ import {
   Trash2, Pencil, ListMusic, Link as LinkIcon, ArrowLeft, Home, FolderOpen,
   ArrowUpCircle, ArrowDownCircle, Megaphone, ChevronRight, FileText,
   Headphones, Video, Paperclip, Star, CalendarDays, LogOut, Copy, ChevronDown, UserPlus,
+  MessageCircle, Mail,
 } from "lucide-react";
 import {
   supabase, kvGet, kvSet, signInWithGoogle, signOut,
@@ -284,7 +285,10 @@ export default function Afina() {
 
       <header className="header">
         <TeamMenu team={currentTeam} teams={myTeams} me={me} onSwitch={switchTeam} onSelect={selectTeam} onSignOut={handleSignOut} />
-        <button className="admin-btn" onClick={tryAdmin}>{isAdmin ? <Unlock size={15} /> : <Lock size={15} />}<span>{isAdmin ? "Admin" : "Ingresar"}</span></button>
+        <div className="header-actions">
+          <button className="admin-btn ghost" onClick={() => setModal("help")}><HelpCircle size={15} /><span>Ayuda</span></button>
+          <button className="admin-btn" onClick={tryAdmin}>{isAdmin ? <Unlock size={15} /> : <Lock size={15} />}<span>{isAdmin ? "Admin" : "Ingresar"}</span></button>
+        </div>
       </header>
 
       {err && <div className="err-banner" onClick={() => setErr("")}>{err}</div>}
@@ -324,6 +328,8 @@ export default function Afina() {
         )}
       </main>
 
+      <footer className="app-footer">Hugo H. Pacheco</footer>
+
       <nav className="bottom-nav">
         <NavBtn icon={Home} label="Inicio" active={tab === "inicio"} onClick={() => setTab("inicio")} />
         <NavBtn icon={CalendarDays} label="Eventos" active={tab === "eventos"} onClick={() => setTab("eventos")} />
@@ -337,6 +343,22 @@ export default function Afina() {
           <h3 className="modal-title">Modo administrador</h3>
           <p className="modal-sub">Ingresá el PIN para crear y editar contenido.</p>
           <PinForm config={config} onOk={() => { setIsAdmin(true); setModal(null); }} onSaveConfig={setConfig} isAdmin={isAdmin} />
+        </Modal>
+      )}
+
+      {modal === "help" && (
+        <Modal onClose={() => setModal(null)}>
+          <h3 className="modal-title">Ayuda y contacto</h3>
+          <p className="modal-sub">¿Tenés una duda o encontraste algo que no funciona? Escribinos.</p>
+          <div className="help-links">
+            <a className="help-link" href="https://wa.me/5493525538427" target="_blank" rel="noreferrer">
+              <MessageCircle size={16} /> WhatsApp
+            </a>
+            <a className="help-link" href="mailto:hugopachecofotografias@gmail.com">
+              <Mail size={16} /> hugopachecofotografias@gmail.com
+            </a>
+          </div>
+          <div className="help-author">Hecho por Hugo H. Pacheco</div>
         </Modal>
       )}
     </div>
@@ -1095,6 +1117,12 @@ const CSS = `
   .header { display:flex; align-items:center; justify-content:space-between; padding:16px 18px; border-bottom:1px solid #2E3358; position:sticky; top:0; background:#1B1F3Bee; backdrop-filter: blur(6px); z-index:10; }
   .brand { display:flex; align-items:center; gap:8px; font-family:'Fraunces',serif; font-size:20px; font-weight:700; color:#FBF7EC; }
   .admin-btn { display:flex; align-items:center; gap:6px; background:#2E3358; color:#E4B75B; padding:7px 12px; border-radius:20px; font-size:13px; font-weight:600; }
+  .admin-btn.ghost { background:transparent; color:#9aa2c9; }
+  .header-actions { display:flex; align-items:center; gap:8px; }
+  .app-footer { text-align:center; padding:18px 0 8px; font-size:11px; color:#4a4e75; }
+  .help-links { display:flex; flex-direction:column; gap:8px; margin-top:6px; }
+  .help-link { display:flex; align-items:center; gap:8px; background:#232853; color:#EDEBFA; padding:10px 14px; border-radius:10px; font-size:14px; text-decoration:none; }
+  .help-author { text-align:center; font-size:11px; color:#6b7099; margin-top:16px; }
   .err-banner { background:#8C3B4A; color:#FBF7EC; padding:8px 18px; font-size:13px; cursor:pointer; }
   .main { max-width:720px; margin:0 auto; padding:18px 16px; }
   .loading { text-align:center; padding:60px; color:#9aa2c9; font-family:'Fraunces',serif; font-size:18px; }
