@@ -1326,6 +1326,7 @@ function SongDetail({ song, isAdmin, chordNotation, onBack, onEdit, onDelete, on
   const [steps, setSteps] = useState(0);
   const [keyPicker, setKeyPicker] = useState(false);
   const [perfMode, setPerfMode] = useState(false);
+  const [fontSize, setFontSize] = useState(15);
   const displayKey = steps ? transposeChordToken(song.key || "", steps) : (song.key || "");
   const keyQuality = (song.key || "").match(/^[A-G](?:#|b)?(.*)$/)?.[1] || "";
   const keyOptions = CHROMA_SHARP.map((n) => n + keyQuality);
@@ -1392,6 +1393,14 @@ function SongDetail({ song, isAdmin, chordNotation, onBack, onEdit, onDelete, on
           )}
 
           <div className="song-desc">{song.description || "Sin descripción"}</div>
+
+          <div className="fontsize-row">
+            <span className="label" style={{ margin: 0 }}>Tamaño de letra</span>
+            <div className="fontsize-btns">
+              <button className="cc-arrow small" onClick={() => setFontSize((f) => Math.max(11, f - 1))}>A-</button>
+              <button className="cc-arrow small" onClick={() => setFontSize((f) => Math.min(26, f + 1))}>A+</button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1403,7 +1412,7 @@ function SongDetail({ song, isAdmin, chordNotation, onBack, onEdit, onDelete, on
             <span className="section-pill" style={{ background: m.color + "26", color: m.color, borderColor: m.color + "66" }}>
               <span className="section-pill-abbr" style={{ borderColor: m.color }}>{m.abbr}</span> {s.name}{s.repeat > 1 && <span className="pill-repeat">x{s.repeat}</span>}
             </span>
-            <div className="chordchart">
+            <div className="chordchart" style={{ fontSize: fontSize + "px" }}>
               {text.split("\n").map((line, li) => {
                 const { chords, lyrics } = splitChordLine(line);
                 return (
@@ -1432,6 +1441,7 @@ function SongDetail({ song, isAdmin, chordNotation, onBack, onEdit, onDelete, on
 function PerformanceMode({ song, sections, steps, chordNotation, onClose }) {
   const [speed, setSpeed] = useState(1);
   const [scrolling, setScrolling] = useState(false);
+  const [fontSize, setFontSize] = useState(19);
   const containerRef = useRef(null);
   const rafRef = useRef(null);
   const refs = useMemo(() => sections.map(() => React.createRef()), [sections.length]);
@@ -1467,6 +1477,10 @@ function PerformanceMode({ song, sections, steps, chordNotation, onClose }) {
           <button className={"perf-scroll-btn" + (scrolling ? " active" : "")} onClick={() => setScrolling(!scrolling)}>
             {scrolling ? <><Square size={14} /> Stop</> : <><Play size={14} /> Auto-scroll</>}
           </button>
+          <div className="fontsize-btns">
+            <button className="cc-arrow small" onClick={() => setFontSize((f) => Math.max(13, f - 1))}>A-</button>
+            <button className="cc-arrow small" onClick={() => setFontSize((f) => Math.min(32, f + 1))}>A+</button>
+          </div>
         </div>
       </div>
 
@@ -1492,7 +1506,7 @@ function PerformanceMode({ song, sections, steps, chordNotation, onClose }) {
               <span className="section-pill" style={{ background: m.color + "26", color: m.color, borderColor: m.color + "66" }}>
                 <span className="section-pill-abbr" style={{ borderColor: m.color }}>{m.abbr}</span> {s.name}{s.repeat > 1 && <span className="pill-repeat">x{s.repeat}</span>}
               </span>
-              <div className="chordchart perf-chart">
+              <div className="chordchart perf-chart" style={{ fontSize: fontSize + "px" }}>
                 {text.split("\n").map((line, li) => {
                   const { chords, lyrics } = splitChordLine(line);
                   return (
@@ -1926,6 +1940,7 @@ const CSS = `
   .chord { color:#E4B75B; font-weight:700; }
   .transpose-cc-row { display:flex; align-items:center; gap:10px; margin-top:14px; }
   .cc-arrow { background:#232853; color:#E4B75B; width:34px; height:34px; border-radius:50%; font-size:20px; display:flex; align-items:center; justify-content:center; }
+  .cc-arrow.small { width:auto; height:32px; padding:0 10px; border-radius:8px; font-size:13px; font-weight:700; }
   .cc-key { font-family:'Fraunces',serif; font-size:22px; font-weight:700; color:#E4B75B; background:#232853; padding:6px 18px; border-radius:10px; min-width:56px; text-align:center; }
   .cc-reset { padding:0 12px; height:34px; }
   .cc-tono-btn { margin-top:14px; background:#232853; color:#EDEBFA; padding:10px 16px; border-radius:10px; font-size:15px; font-weight:600; }
@@ -1939,6 +1954,8 @@ const CSS = `
   .section-nav { display:flex; gap:8px; overflow-x:auto; padding:14px 0 4px; }
   .section-chip { flex-shrink:0; width:32px; height:32px; border-radius:50%; border:2px solid; font-size:11px; font-weight:700; background:transparent; }
   .song-desc { font-size:13px; color:#5b6088; margin-top:8px; padding-top:10px; border-top:1px dashed #d8d2bf; }
+  .fontsize-row { display:flex; align-items:center; justify-content:space-between; margin-top:12px; }
+  .fontsize-btns { display:flex; gap:6px; }
   .section-block { margin-top:20px; scroll-margin-top:16px; }
   .section-pill { display:inline-flex; align-items:center; gap:8px; font-size:13px; font-weight:700; padding:5px 12px 5px 5px; border-radius:20px; border:1px solid; margin-bottom:8px; }
   .section-pill-abbr { display:flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:50%; border:1.5px solid; font-size:10px; background:#1B1F3B; }
