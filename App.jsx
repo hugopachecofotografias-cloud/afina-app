@@ -200,7 +200,32 @@ function parsePastedChart(raw) {
   if (current.text.trim() || sections.length === 0) sections.push(current);
   return sections;
 }
-
+// versión liviana: solo agrega corchetes a un bloque de texto de UNA sección
+// (sin dividir en secciones), para cuando se escribe/pega directo en el
+// cuadro de texto sin pasar por el botón de convertir
+function autoBracketSectionText(raw) {
+  const lines = (raw || "").replace(/\r\n/g, "\n").split("\n");
+  const out = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (line.includes("[")) { out.push(line); i++; continue; }
+    if (isChordLine(line)) {
+      const next = lines[i + 1];
+      if (next !== undefined && !isChordLine(next) && !next.includes("[")) {
+        out.push(mergeChordAndLyricLine(line, next));
+        i += 2;
+      } else {
+        out.push(line.trim().split(/\s+/).map((c) => `[${c}]`).join(" "));
+        i++;
+      }
+      continue;
+    }
+    out.push(line);
+    i++;
+  }
+  return out.join("\n");
+}
 
 function useShared(key, fallback, enabled = true) {
   const [val, setVal] = useState(fallback);
@@ -1559,7 +1584,7 @@ function SongForm({ initial, onCancel, onSave }) {
   }
   function submit() {
     if (!title.trim()) { setFormErr("Poné al menos un título."); return; }
-    onSave({ id: initial?.id, title: title.trim(), artist: artist.trim(), key: key.trim(), bpm: bpm.trim(), description: description.trim(), sections, links, favorite: initial?.favorite || false });
+    onSave({ id: initial?.id, title: title.trim(), artist: artist.trim(), key: key.trim(), bpm: bpm.trim(), description: description.trim(), sections: sections.map((s) => ({ ...s, text: autoBracketSectionText(s.text) })), links, favorite: initial?.favorite || false });
   }
 
   return (
