@@ -192,6 +192,7 @@ export default function Afina() {
   const [members, setMembers] = useShared(tk ? tkey("members") : "noop:members", [], teamReady);
   const [avisos, setAvisos] = useShared(tk ? tkey("avisos") : "noop:avisos", [], teamReady);
   const [resources, setResources] = useShared(tk ? tkey("resources") : "noop:resources", [], teamReady);
+  const [repertorios, setRepertorios] = useShared(tk ? tkey("repertorios") : "noop:repertorios", [], teamReady);
   const [config, setConfig, configLoaded] = useShared(tk ? tkey("config") : "noop:config", { pin: "1234" }, teamReady);
   const [attendance, setAttendance] = useState({});
 
@@ -271,6 +272,20 @@ export default function Afina() {
     await setSongs(songs.filter((s) => s.id !== id));
     setScreen({ mode: "list", id: null });
   }
+  async function toggleFavorite(id) {
+    await setSongs(songs.map((s) => (s.id === id ? { ...s, favorite: !s.favorite } : s)));
+  }
+
+  async function upsertRepertorio(data) {
+    if (data.id) await setRepertorios(repertorios.map((r) => (r.id === data.id ? data : r)));
+    else await setRepertorios([...repertorios, { ...data, id: uid() }]);
+    setScreen({ mode: "list", id: null });
+  }
+  async function deleteRepertorio(id) {
+    if (!window.confirm("¿Borrar este repertorio?")) return;
+    await setRepertorios(repertorios.filter((r) => r.id !== id));
+    setScreen({ mode: "list", id: null });
+  }
 
   async function upsertMember(data) {
     if (data.id) await setMembers(members.map((m) => (m.id === data.id ? data : m)));
@@ -348,7 +363,7 @@ export default function Afina() {
         {tab === "eventos" && (
           <EventosTab
             events={sortedEvents} today={today} screen={screen} setScreen={setScreen} isAdmin={isAdmin}
-            songs={songs} members={members} me={me} attendance={attendance}
+            songs={songs} repertorios={repertorios} members={members} me={me} attendance={attendance}
             onSave={upsertEvent} onDelete={deleteEvent}
             onSetAttendance={setMyAttendance} onClaimRole={claimRole} onAssignRole={assignRole}
             requireMe={requireMe}
@@ -356,7 +371,9 @@ export default function Afina() {
         )}
 
         {tab === "canciones" && (
-          <CancionesTab songs={songs} screen={screen} setScreen={setScreen} isAdmin={isAdmin} onSave={upsertSong} onDelete={deleteSong} />
+          <CancionesTab songs={songs} repertorios={repertorios} screen={screen} setScreen={setScreen} isAdmin={isAdmin}
+            onSave={upsertSong} onDelete={deleteSong} onToggleFavorite={toggleFavorite}
+            onSaveRepertorio={upsertRepertorio} onDeleteRepertorio={deleteRepertorio} />
         )}
 
         {tab === "equipo" && (
@@ -704,7 +721,7 @@ function Section({ title, icon, children }) {
   return (<div className="section"><div className="section-title">{icon} {title}</div>{children}</div>);
 }
 
-function EventosTab({ events, today, screen, setScreen, isAdmin, songs, members, me, attendance, onSave, onDelete, onSetAttendance, onClaimRole, onAssignRole, requireMe }) {
+function EventosTab({ events, today, screen, setScreen, isAdmin, songs, repertorios, members, me, attendance, onSave, onDelete, onSetAttendance, onClaimRole, onAssignRole, requireMe }) {
   const [subtab, setSubtab] = useState("proximos");
   const proximos = events.filter((e) => e.date >= today);
   const pasados = [...events].filter((e) => e.date < today).reverse();
@@ -712,7 +729,7 @@ function EventosTab({ events, today, screen, setScreen, isAdmin, songs, members,
 
   if (screen.mode === "form") {
     const ev = screen.id ? events.find((e) => e.id === screen.id) : null;
-    return <EventForm initial={ev} songs={songs} onCancel={() => setScreen({ mode: ev ? "detail" : "list", id: screen.id })} onSave={onSave} />;
+    return <EventForm initial={ev} songs={songs} repertorios={repertorios} onCancel={() => setScreen({ mode: ev ? "detail" : "list", id: screen.id })} onSave={onSave} />;
   }
   if (screen.mode === "detail") {
     const ev = events.find((e) => e.id === screen.id);
@@ -876,7 +893,7 @@ function AssignPicker({ members, current, onAssign }) {
   );
 }
 
-function EventForm({ initial, songs, onCancel, onSave }) {
+function EventForm({ initial, songs, repertorios, onCancel, onSave }) {
   const [title, setTitle] = useState(initial?.title || "");
   const [type, setType] = useState(initial?.type || "servicio");
   const [date, setDate] = useState(initial?.date || "");
@@ -887,6 +904,7 @@ function EventForm({ initial, songs, onCancel, onSave }) {
   const [setlist, setSetlist] = useState(initial?.setlist || []);
   const [roleDraft, setRoleDraft] = useState("");
   const [songPick, setSongPick] = useState("");
+  const [repPick, setRepPick] = useState("");
   const [formErr, setFormErr] = useState("");
 
   function addRole() { if (!roleDraft.trim()) return; setRoles([...roles, { id: uid(), name: roleDraft.trim(), assignedTo: "" }]); setRoleDraft(""); }
@@ -896,6 +914,17 @@ function EventForm({ initial, songs, onCancel, onSave }) {
     const song = songs.find((s) => s.id === songPick);
     setSetlist([...setlist, { id: uid(), songId: song.id, title: song.title, key: song.key, prepare: false, suggestedBy: "", refLink: "" }]);
     setSongPick("");
+  }
+  function addFromRepertorio() {
+    if (!repPick) return;
+    const rep = repertorios.find((r) => r.id === repPick);
+    const already = new Set(setlist.map((s) => s.songId));
+    const nuevas = (rep.songIds || [])
+      .map((id) => songs.find((s) => s.id === id))
+      .filter((s) => s && !already.has(s.id))
+      .map((song) => ({ id: uid(), songId: song.id, title: song.title, key: song.key, prepare: false, suggestedBy: "", refLink: "" }));
+    setSetlist([...setlist, ...nuevas]);
+    setRepPick("");
   }
   function updateSetlistItem(id, patch) { setSetlist(setlist.map((s) => (s.id === id ? { ...s, ...patch } : s))); }
   function removeSong(id) { setSetlist(setlist.filter((s) => s.id !== id)); }
@@ -955,47 +984,205 @@ function EventForm({ initial, songs, onCancel, onSave }) {
         <button className="secondary-btn" onClick={addSongFromLibrary}><Plus size={15} /></button>
       </div>
       {songs.length === 0 && <p className="muted small">Todavía no cargaste canciones en la biblioteca (sección Canciones).</p>}
+      {repertorios && repertorios.length > 0 && (
+        <div className="add-row">
+          <select className="input" value={repPick} onChange={(e) => setRepPick(e.target.value)}>
+            <option value="">Cargar desde repertorio…</option>
+            {repertorios.map((r) => <option key={r.id} value={r.id}>{r.name}{r.artist ? ` (${r.artist})` : ""}</option>)}
+          </select>
+          <button className="secondary-btn" onClick={addFromRepertorio}><ListMusic size={15} /></button>
+        </div>
+      )}
       {formErr && <div className="pin-error">{formErr}</div>}
       <button className="primary-btn full" onClick={submit}>{initial ? "Guardar cambios" : "Crear evento"}</button>
     </div>
   );
 }
 
-function CancionesTab({ songs, screen, setScreen, isAdmin, onSave, onDelete }) {
+function CancionesTab({ songs, repertorios, screen, setScreen, isAdmin, onSave, onDelete, onToggleFavorite, onSaveRepertorio, onDeleteRepertorio }) {
   const [q, setQ] = useState("");
-  if (screen.mode === "form") {
+  const [subtab, setSubtab] = useState("biblioteca");
+  const [repScreen, setRepScreen] = useState({ mode: "list", id: null });
+
+  function changeSubtab(next) {
+    setSubtab(next);
+    setScreen({ mode: "list", id: null });
+    setRepScreen({ mode: "list", id: null });
+  }
+
+  if (subtab === "repertorios") {
+    if (repScreen.mode === "form") {
+      const rep = repScreen.id ? repertorios.find((r) => r.id === repScreen.id) : null;
+      return <RepertorioForm initial={rep} songs={songs} onCancel={() => setRepScreen({ mode: rep ? "detail" : "list", id: repScreen.id })} onSave={(d) => { onSaveRepertorio(d); setRepScreen({ mode: "list", id: null }); }} />;
+    }
+    if (repScreen.mode === "detail") {
+      const rep = repertorios.find((r) => r.id === repScreen.id);
+      if (!rep) return null;
+      return <RepertorioDetail rep={rep} songs={songs} isAdmin={isAdmin}
+        onBack={() => setRepScreen({ mode: "list", id: null })}
+        onEdit={() => setRepScreen({ mode: "form", id: rep.id })}
+        onDelete={() => { onDeleteRepertorio(rep.id); setRepScreen({ mode: "list", id: null }); }} />;
+    }
+  } else if (screen.mode === "form") {
     const song = screen.id ? songs.find((s) => s.id === screen.id) : null;
     return <SongForm initial={song} onCancel={() => setScreen({ mode: song ? "detail" : "list", id: screen.id })} onSave={onSave} />;
-  }
-  if (screen.mode === "detail") {
+  } else if (screen.mode === "detail") {
     const song = songs.find((s) => s.id === screen.id);
     if (!song) return null;
-    return <SongDetail song={song} isAdmin={isAdmin} onBack={() => setScreen({ mode: "list", id: null })} onEdit={() => setScreen({ mode: "form", id: song.id })} onDelete={() => onDelete(song.id)} />;
+    return <SongDetail song={song} isAdmin={isAdmin} onBack={() => setScreen({ mode: "list", id: null })} onEdit={() => setScreen({ mode: "form", id: song.id })} onDelete={() => onDelete(song.id)} onToggleFavorite={() => onToggleFavorite(song.id)} />;
   }
-  const filtered = songs.filter((s) => s.title.toLowerCase().includes(q.toLowerCase()));
+
+  const base = subtab === "favoritos" ? songs.filter((s) => s.favorite) : songs;
+  const filtered = base.filter((s) => s.title.toLowerCase().includes(q.toLowerCase()) || (s.artist || "").toLowerCase().includes(q.toLowerCase()));
+  const grouped = useMemo(() => {
+    const map = new Map();
+    [...filtered].sort((a, b) => (a.artist || "zzz").localeCompare(b.artist || "zzz") || a.title.localeCompare(b.title)).forEach((s) => {
+      const key = s.artist?.trim() || "Sin artista";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(s);
+    });
+    return Array.from(map.entries());
+  }, [filtered]);
+
   return (
     <div>
-      <input className="input" placeholder="Buscar canción…" value={q} onChange={(e) => setQ(e.target.value)} style={{ marginBottom: 16 }} />
-      {filtered.length === 0 && (
-        <div className="empty"><ListMusic size={28} color="#5b628f" /><p>No hay canciones cargadas.</p><button className="primary-btn" onClick={() => setScreen({ mode: "form", id: null })}><Plus size={16} /> Agregar canción</button></div>
+      <div className="tabs">
+        <button className={"tab" + (subtab === "biblioteca" ? " active" : "")} onClick={() => changeSubtab("biblioteca")}>Biblioteca</button>
+        <button className={"tab" + (subtab === "favoritos" ? " active" : "")} onClick={() => changeSubtab("favoritos")}>Favoritos</button>
+        <button className={"tab" + (subtab === "repertorios" ? " active" : "")} onClick={() => changeSubtab("repertorios")}>Repertorios</button>
+      </div>
+
+      {subtab === "repertorios" ? (
+        <RepertorioList repertorios={repertorios} onOpen={(id) => setRepScreen({ mode: "detail", id })} onNew={() => setRepScreen({ mode: "form", id: null })} />
+      ) : (
+        <>
+          <input className="input" placeholder="Buscar canción o artista…" value={q} onChange={(e) => setQ(e.target.value)} style={{ marginBottom: 16 }} />
+          {filtered.length === 0 && (
+            <div className="empty">
+              <ListMusic size={28} color="#5b628f" />
+              <p>{subtab === "favoritos" ? "Todavía no marcaste canciones favoritas." : "No hay canciones cargadas."}</p>
+              {subtab === "biblioteca" && <button className="primary-btn" onClick={() => setScreen({ mode: "form", id: null })}><Plus size={16} /> Agregar canción</button>}
+            </div>
+          )}
+          {grouped.map(([artist, list]) => (
+            <div key={artist} className="song-group">
+              <div className="song-group-title">{artist}</div>
+              <div className="song-list">
+                {list.map((s) => (
+                  <div key={s.id} className="song-row" onClick={() => setScreen({ mode: "detail", id: s.id })}>
+                    <button className="song-fav" onClick={(e) => { e.stopPropagation(); onToggleFavorite(s.id); }}>
+                      <Star size={16} fill={s.favorite ? "#E4B75B" : "none"} color={s.favorite ? "#E4B75B" : "#6b7099"} />
+                    </button>
+                    <div className="song-row-main">
+                      <span className="song-title">{s.title}</span>
+                      <div className="song-tags">{s.key && <span className="tag">{s.key}</span>}{s.bpm && <span className="tag">{s.bpm} bpm</span>}</div>
+                    </div>
+                    <ChevronRight size={16} color="#6b7099" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+          {filtered.length > 0 && <button className="fab" onClick={() => setScreen({ mode: "form", id: null })}><Plus size={24} /></button>}
+        </>
+      )}
+    </div>
+  );
+}
+
+function RepertorioList({ repertorios, onOpen, onNew }) {
+  return (
+    <div>
+      {repertorios.length === 0 && (
+        <div className="empty"><ListMusic size={28} color="#5b628f" /><p>No hay repertorios guardados todavía.</p><button className="primary-btn" onClick={onNew}><Plus size={16} /> Crear repertorio</button></div>
       )}
       <div className="song-list">
-        {filtered.map((s) => (
-          <div key={s.id} className="song-row" onClick={() => setScreen({ mode: "detail", id: s.id })}>
+        {repertorios.map((r) => (
+          <div key={r.id} className="song-row" onClick={() => onOpen(r.id)}>
             <div className="song-row-main">
-              <span className="song-title">{s.title}</span>
-              <div className="song-tags">{s.key && <span className="tag">{s.key}</span>}{s.bpm && <span className="tag">{s.bpm} bpm</span>}</div>
+              <span className="song-title">{r.name}</span>
+              <div className="song-tags">{r.artist && <span className="tag">{r.artist}</span>}<span className="tag">{(r.songIds || []).length} canciones</span></div>
             </div>
             <ChevronRight size={16} color="#6b7099" />
           </div>
         ))}
       </div>
-      {filtered.length > 0 && <button className="fab" onClick={() => setScreen({ mode: "form", id: null })}><Plus size={24} /></button>}
+      {repertorios.length > 0 && <button className="fab" onClick={onNew}><Plus size={24} /></button>}
     </div>
   );
 }
 
-function SongDetail({ song, isAdmin, onBack, onEdit, onDelete }) {
+function RepertorioDetail({ rep, songs, isAdmin, onBack, onEdit, onDelete }) {
+  const list = (rep.songIds || []).map((id) => songs.find((s) => s.id === id)).filter(Boolean);
+  return (
+    <div>
+      <button className="back-btn" onClick={onBack}><ArrowLeft size={16} /> Volver</button>
+      <div className="card detail-head">
+        <div className="detail-body">
+          <div className="detail-top">
+            <span className="badge" style={{ background: "#7C93C726", color: "#7C93C7", borderColor: "#7C93C766" }}>Repertorio</span>
+            <div className="icon-row"><button className="icon-btn" onClick={onEdit}><Pencil size={15} /></button><button className="icon-btn" onClick={onDelete}><Trash2 size={15} /></button></div>
+          </div>
+          <h2>{rep.name}</h2>
+          {rep.artist && <div className="meta">{rep.artist}</div>}
+          <p className="hint" style={{ marginTop: 10 }}>Para usarlo en un servicio o ensayo, andá al evento y tocá "Cargar desde repertorio" al armar el repertorio.</p>
+        </div>
+      </div>
+      <Section title="Canciones" icon={<ListMusic size={16} />}>
+        {list.length === 0 && <p className="muted">Este repertorio todavía no tiene canciones.</p>}
+        <div className="setlist">
+          {list.map((s, i) => (
+            <div key={s.id} className="setlist-item">
+              <span className="setlist-num">{i + 1}</span>
+              <div className="setlist-info"><span className="setlist-title">{s.title}</span>{s.key && <span className="setlist-key">{s.key}</span>}</div>
+            </div>
+          ))}
+        </div>
+      </Section>
+    </div>
+  );
+}
+
+function RepertorioForm({ initial, songs, onCancel, onSave }) {
+  const [name, setName] = useState(initial?.name || "");
+  const [artist, setArtist] = useState(initial?.artist || "");
+  const [songIds, setSongIds] = useState(initial?.songIds || []);
+  const [q, setQ] = useState("");
+  const [formErr, setFormErr] = useState("");
+
+  function toggle(id) { setSongIds(songIds.includes(id) ? songIds.filter((i) => i !== id) : [...songIds, id]); }
+  function submit() {
+    if (!name.trim()) { setFormErr("Poné un nombre para el repertorio."); return; }
+    onSave({ id: initial?.id, name: name.trim(), artist: artist.trim(), songIds });
+  }
+  const filtered = songs.filter((s) => s.title.toLowerCase().includes(q.toLowerCase()));
+
+  return (
+    <div>
+      <button className="back-btn" onClick={onCancel}><ArrowLeft size={16} /> Cancelar</button>
+      <h2 className="form-title">{initial ? "Editar repertorio" : "Nuevo repertorio"}</h2>
+      <label className="label">Nombre</label>
+      <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej: Repertorio de Navidad" />
+      <label className="label">Artista (opcional)</label>
+      <input className="input" value={artist} onChange={(e) => setArtist(e.target.value)} placeholder="Ej: Miel San Marcos" />
+      <label className="label">Canciones ({songIds.length} elegidas)</label>
+      <input className="input" placeholder="Buscar canción…" value={q} onChange={(e) => setQ(e.target.value)} style={{ marginBottom: 8 }} />
+      <div className="rep-song-pick">
+        {filtered.map((s) => (
+          <label key={s.id} className="rep-song-pick-row">
+            <input type="checkbox" checked={songIds.includes(s.id)} onChange={() => toggle(s.id)} />
+            <span>{s.title}</span>{s.artist && <span className="muted small">· {s.artist}</span>}
+          </label>
+        ))}
+        {filtered.length === 0 && <p className="muted small">No hay canciones que coincidan.</p>}
+      </div>
+      {formErr && <div className="pin-error">{formErr}</div>}
+      <button className="primary-btn full" onClick={submit}>{initial ? "Guardar cambios" : "Crear repertorio"}</button>
+    </div>
+  );
+}
+
+function SongDetail({ song, isAdmin, onBack, onEdit, onDelete, onToggleFavorite }) {
   const [steps, setSteps] = useState(0);
   const [keyPicker, setKeyPicker] = useState(false);
   const [perfMode, setPerfMode] = useState(false);
@@ -1023,13 +1210,14 @@ function SongDetail({ song, isAdmin, onBack, onEdit, onDelete }) {
           <div className="detail-top">
             <span className="badge" style={{ background: "#7C93C726", color: "#7C93C7", borderColor: "#7C93C766" }}>Canción</span>
             <div className="icon-row">
+              <button className="icon-btn" onClick={onToggleFavorite}><Star size={15} fill={song.favorite ? "#E4B75B" : "none"} color={song.favorite ? "#E4B75B" : "#5b6088"} /></button>
               <button className="icon-btn perf-trigger" onClick={() => setPerfMode(true)}><Presentation size={15} /> Modo directo</button>
               <button className="icon-btn" onClick={onEdit}><Pencil size={15} /></button>
               <button className="icon-btn" onClick={onDelete}><Trash2 size={15} /></button>
             </div>
           </div>
           <h2>{song.title}</h2>
-          <div className="meta">{song.bpm && <span>{song.bpm} BPM</span>}</div>
+          <div className="meta">{song.artist && <span>{song.artist}</span>}{song.bpm && <span>{song.artist ? "· " : ""}{song.bpm} BPM</span>}</div>
 
           <button className="cc-tono-btn" onClick={() => setKeyPicker(!keyPicker)}>
             Tono: <span className="cc-tono-value">{displayKey || "—"}</span>
@@ -1179,6 +1367,7 @@ function PerformanceMode({ song, sections, steps, onClose }) {
 
 function SongForm({ initial, onCancel, onSave }) {
   const [title, setTitle] = useState(initial?.title || "");
+  const [artist, setArtist] = useState(initial?.artist || "");
   const [key, setKey] = useState(initial?.key || "");
   const [bpm, setBpm] = useState(initial?.bpm || "");
   const [description, setDescription] = useState(initial?.description || initial?.structure || "");
@@ -1194,7 +1383,7 @@ function SongForm({ initial, onCancel, onSave }) {
   function removeLink(i) { setLinks(links.filter((_, idx) => idx !== i)); }
   function submit() {
     if (!title.trim()) { setFormErr("Poné al menos un título."); return; }
-    onSave({ id: initial?.id, title: title.trim(), key: key.trim(), bpm: bpm.trim(), description: description.trim(), sections, links });
+    onSave({ id: initial?.id, title: title.trim(), artist: artist.trim(), key: key.trim(), bpm: bpm.trim(), description: description.trim(), sections, links, favorite: initial?.favorite || false });
   }
 
   return (
@@ -1203,6 +1392,8 @@ function SongForm({ initial, onCancel, onSave }) {
       <h2 className="form-title">{initial ? "Editar canción" : "Nueva canción"}</h2>
       <label className="label">Título</label>
       <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Sublime gracia" />
+      <label className="label">Artista</label>
+      <input className="input" value={artist} onChange={(e) => setArtist(e.target.value)} placeholder="Ej: Miel San Marcos" />
       <div className="row2">
         <div style={{ flex: 1 }}><label className="label">Tonalidad original</label><input className="input" value={key} onChange={(e) => setKey(e.target.value)} placeholder="G" /></div>
         <div style={{ flex: 1 }}><label className="label">BPM</label><input className="input" value={bpm} onChange={(e) => setBpm(e.target.value)} placeholder="72" /></div>
@@ -1540,6 +1731,12 @@ const CSS = `
   .song-title { font-size:15px; font-weight:600; font-family:'Fraunces',serif; }
   .song-tags { display:flex; gap:6px; }
   .tag { font-size:11px; color:#9aa2c9; background:#1B1F3B; padding:2px 8px; border-radius:6px; }
+  .song-fav { display:flex; padding:2px; flex-shrink:0; }
+  .song-group { margin-bottom:18px; }
+  .song-group-title { font-size:12px; font-weight:700; color:#9aa2c9; text-transform:uppercase; letter-spacing:.5px; margin-bottom:8px; }
+  .rep-song-pick { display:flex; flex-direction:column; gap:2px; max-height:320px; overflow-y:auto; background:#232853; border-radius:10px; padding:8px; }
+  .rep-song-pick-row { display:flex; align-items:center; gap:8px; padding:8px 6px; font-size:14px; border-radius:8px; }
+  .rep-song-pick-row:hover { background:#1B1F3B; }
   .transpose-row { display:flex; align-items:center; gap:14px; }
   .key-display { font-family:'Fraunces',serif; font-size:26px; font-weight:700; color:#E4B75B; min-width:44px; text-align:center; }
   .lyrics { background:#232853; border-radius:12px; padding:16px 18px; font-family:'Work Sans',monospace; font-size:14px; line-height:1.9; }
