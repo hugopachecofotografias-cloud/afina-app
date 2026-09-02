@@ -1143,6 +1143,19 @@ function CancionesTab({ songs, repertorios, screen, setScreen, isAdmin, chordNot
   const [subtab, setSubtab] = useState("biblioteca");
   const [repScreen, setRepScreen] = useState({ mode: "list", id: null });
 
+  const base = subtab === "favoritos" ? songs.filter((s) => s.favorite) : songs;
+  const filtered = base.filter((s) => s.title.toLowerCase().includes(q.toLowerCase()) || (s.artist || "").toLowerCase().includes(q.toLowerCase()));
+  const grouped = useMemo(() => {
+    const map = new Map();
+    [...filtered].sort((a, b) => (a.artist || "zzz").localeCompare(b.artist || "zzz") || a.title.localeCompare(b.title)).forEach((s) => {
+      const key = s.artist?.trim() || "Sin artista";
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(s);
+    });
+    return Array.from(map.entries());
+    // eslint-disable-next-line
+  }, [filtered]);
+
   function changeSubtab(next) {
     setSubtab(next);
     setScreen({ mode: "list", id: null });
@@ -1170,18 +1183,6 @@ function CancionesTab({ songs, repertorios, screen, setScreen, isAdmin, chordNot
     if (!song) return null;
     return <SongDetail song={song} isAdmin={isAdmin} chordNotation={chordNotation} onBack={() => setScreen({ mode: "list", id: null })} onEdit={() => setScreen({ mode: "form", id: song.id })} onDelete={() => onDelete(song.id)} onToggleFavorite={() => onToggleFavorite(song.id)} />;
   }
-
-  const base = subtab === "favoritos" ? songs.filter((s) => s.favorite) : songs;
-  const filtered = base.filter((s) => s.title.toLowerCase().includes(q.toLowerCase()) || (s.artist || "").toLowerCase().includes(q.toLowerCase()));
-  const grouped = useMemo(() => {
-    const map = new Map();
-    [...filtered].sort((a, b) => (a.artist || "zzz").localeCompare(b.artist || "zzz") || a.title.localeCompare(b.title)).forEach((s) => {
-      const key = s.artist?.trim() || "Sin artista";
-      if (!map.has(key)) map.set(key, []);
-      map.get(key).push(s);
-    });
-    return Array.from(map.entries());
-  }, [filtered]);
 
   return (
     <div>
