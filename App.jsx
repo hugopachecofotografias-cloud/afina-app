@@ -4,7 +4,7 @@ import {
   Trash2, Pencil, ListMusic, Link as LinkIcon, ArrowLeft, Home, FolderOpen,
   ArrowUpCircle, ArrowDownCircle, Megaphone, ChevronRight, FileText,
   Headphones, Video, Paperclip, Star, CalendarDays, LogOut, Copy, ChevronDown, UserPlus,
-  MessageCircle, Mail, Presentation, Play, Square, ClipboardPaste,
+  MessageCircle, Mail, Presentation, Play, Square, ClipboardPaste, Settings,
 } from "lucide-react";
 import {
   supabase, kvGet, kvSet, signInWithGoogle, signOut,
@@ -48,6 +48,34 @@ function transposeChordToken(token, steps) {
 function transposeLyrics(text, steps) {
   if (!steps || !text) return text;
   return text.replace(/\[([^\]]+)\]/g, (_, chord) => `[${transposeChordToken(chord, steps)}]`);
+}
+
+// ---------- números tipo Nashville (I, IVm, V7...) relativos al tono original ----------
+const ROMAN_MAP = ["I", "bII", "II", "bIII", "III", "IV", "#IV", "V", "bVI", "VI", "bVII", "VII"];
+function chordToRoman(token, keyRoot) {
+  const m = token.match(/^([A-G](?:#|b)?)([^/]*)(?:\/([A-G](?:#|b)?))?$/);
+  if (!m) return token;
+  const [, root, rest, bass] = m;
+  const ri = noteIndex(root), ki = noteIndex(keyRoot);
+  if (ri === -1 || ki === -1) return token;
+  const deg = ROMAN_MAP[(ri - ki + 12) % 12];
+  let out = deg + rest;
+  if (bass) {
+    const bi = noteIndex(bass);
+    if (bi !== -1) out += "/" + ROMAN_MAP[(bi - ki + 12) % 12];
+  }
+  return out;
+}
+function romanizeLyrics(text, keyRoot) {
+  if (!text) return text;
+  const kr = (keyRoot || "").match(/^[A-G](?:#|b)?/)?.[0];
+  if (!kr) return text;
+  return text.replace(/\[([^\]]+)\]/g, (_, chord) => `[${chordToRoman(chord, kr)}]`);
+}
+// notation: 'american' (transporta con steps) o 'nashville' (números, fijo relativo al tono original)
+function convertChart(text, songKey, steps, notation) {
+  if (notation === "nashville") return romanizeLyrics(text, songKey);
+  return transposeLyrics(text, steps);
 }
 function renderChordLine(text) {
   const parts = text.split(/(\[[^\]]+\])/g);
@@ -417,6 +445,7 @@ export default function Afina() {
       <header className="header">
         <TeamMenu team={currentTeam} teams={myTeams} me={me} onSwitch={switchTeam} onSelect={selectTeam} onSignOut={handleSignOut} />
         <div className="header-actions">
+          <button className="admin-btn ghost" onClick={() => setModal("prefs")}><Settings size={15} /><span>Preferencias</span></button>
           <button className="admin-btn ghost" onClick={() => setModal("help")}><HelpCircle size={15} /><span>Ayuda</span></button>
           <button className="admin-btn" onClick={tryAdmin}>{isAdmin ? <Unlock size={15} /> : <Lock size={15} />}<span>{isAdmin ? "Admin" : "Ingresar"}</span></button>
         </div>
@@ -424,53 +453,69 @@ export default function Afina() {
 
       {err && <div className="err-banner" onClick={() => setErr("")}>{err}</div>}
 
-      <main className="main">
-        {tab === "inicio" && (
-          <Inicio
-            team={currentTeam} events={sortedEvents}
-            proximoEvento={proximoEvento} attendance={attendance[proximoEvento?.id] || {}}
-            me={me} members={members} songs={songs} avisos={avisos} isAdmin={isAdmin}
-            onSetAttendance={(s) => proximoEvento && setMyAttendance(proximoEvento.id, s)}
-            onGoEvent={() => { setTab("eventos"); setScreen({ mode: "detail", id: proximoEvento.id }); }}
-            onAddAviso={addAviso} onRemoveAviso={removeAviso}
-          />
-        )}
+      <div className="app-body">
+        <aside className="sidebar">
+          <div className="sidebar-brand"><Music size={22} color="#E4B75B" /></div>
+          <NavBtn icon={Home} label="Inicio" active={tab === "inicio"} onClick={() => setTab("inicio")} />
+          <NavBtn icon={CalendarDays} label="Eventos" active={tab === "eventos"} onClick={() => setTab("eventos")} />
+          <NavBtn icon={ListMusic} label="Canciones" active={tab === "canciones"} onClick={() => setTab("canciones")} />
+          <NavBtn icon={Users} label="Equipo" active={tab === "equipo"} onClick={() => setTab("equipo")} />
+          <NavBtn icon={FolderOpen} label="Recursos" active={tab === "recursos"} onClick={() => setTab("recursos")} />
+          <div className="sidebar-spacer" />
+          <NavBtn icon={Settings} label="Ajustes" active={false} onClick={() => setModal("prefs")} />
+          <NavBtn icon={LogOut} label="Salir" active={false} onClick={handleSignOut} />
+        </aside>
 
-        {tab === "eventos" && (
-          <EventosTab
-            events={sortedEvents} today={today} screen={screen} setScreen={setScreen} isAdmin={isAdmin}
-            songs={songs} repertorios={repertorios} members={members} me={me} attendance={attendance}
-            onSave={upsertEvent} onDelete={deleteEvent}
-            onSetAttendance={setMyAttendance} onClaimRole={claimRole} onAssignRole={assignRole}
-            requireMe={requireMe}
-          />
-        )}
+        <div className="app-content">
+          <main className="main">
+            {tab === "inicio" && (
+              <Inicio
+                team={currentTeam} events={sortedEvents}
+                proximoEvento={proximoEvento} attendance={attendance[proximoEvento?.id] || {}}
+                me={me} members={members} songs={songs} avisos={avisos} isAdmin={isAdmin}
+                onSetAttendance={(s) => proximoEvento && setMyAttendance(proximoEvento.id, s)}
+                onGoEvent={() => { setTab("eventos"); setScreen({ mode: "detail", id: proximoEvento.id }); }}
+                onAddAviso={addAviso} onRemoveAviso={removeAviso}
+              />
+            )}
 
-        {tab === "canciones" && (
-          <CancionesTab songs={songs} repertorios={repertorios} screen={screen} setScreen={setScreen} isAdmin={isAdmin}
-            onSave={upsertSong} onDelete={deleteSong} onToggleFavorite={toggleFavorite}
-            onSaveRepertorio={upsertRepertorio} onDeleteRepertorio={deleteRepertorio} />
-        )}
+            {tab === "eventos" && (
+              <EventosTab
+                events={sortedEvents} today={today} screen={screen} setScreen={setScreen} isAdmin={isAdmin}
+                songs={songs} repertorios={repertorios} members={members} me={me} attendance={attendance}
+                onSave={upsertEvent} onDelete={deleteEvent}
+                onSetAttendance={setMyAttendance} onClaimRole={claimRole} onAssignRole={assignRole}
+                requireMe={requireMe}
+              />
+            )}
 
-        {tab === "equipo" && (
-          <EquipoTab members={members} screen={screen} setScreen={setScreen} isAdmin={isAdmin} me={me}
-            onSave={upsertMember} onDelete={deleteMember} requireMe={requireMe} />
-        )}
+            {tab === "canciones" && (
+              <CancionesTab songs={songs} repertorios={repertorios} screen={screen} setScreen={setScreen} isAdmin={isAdmin} chordNotation={config.chordNotation || "american"}
+                onSave={upsertSong} onDelete={deleteSong} onToggleFavorite={toggleFavorite}
+                onSaveRepertorio={upsertRepertorio} onDeleteRepertorio={deleteRepertorio} />
+            )}
 
-        {tab === "recursos" && (
-          <RecursosTab resources={resources} screen={screen} setScreen={setScreen} isAdmin={isAdmin} onSave={upsertResource} onDelete={deleteResource} />
-        )}
-      </main>
+            {tab === "equipo" && (
+              <EquipoTab members={members} screen={screen} setScreen={setScreen} isAdmin={isAdmin} me={me}
+                onSave={upsertMember} onDelete={deleteMember} requireMe={requireMe} />
+            )}
 
-      <footer className="app-footer">Hugo H. Pacheco</footer>
+            {tab === "recursos" && (
+              <RecursosTab resources={resources} screen={screen} setScreen={setScreen} isAdmin={isAdmin} onSave={upsertResource} onDelete={deleteResource} />
+            )}
+          </main>
 
-      <nav className="bottom-nav">
-        <NavBtn icon={Home} label="Inicio" active={tab === "inicio"} onClick={() => setTab("inicio")} />
-        <NavBtn icon={CalendarDays} label="Eventos" active={tab === "eventos"} onClick={() => setTab("eventos")} />
-        <NavBtn icon={ListMusic} label="Canciones" active={tab === "canciones"} onClick={() => setTab("canciones")} />
-        <NavBtn icon={Users} label="Equipo" active={tab === "equipo"} onClick={() => setTab("equipo")} />
-        <NavBtn icon={FolderOpen} label="Recursos" active={tab === "recursos"} onClick={() => setTab("recursos")} />
-      </nav>
+          <footer className="app-footer">Hugo H. Pacheco</footer>
+
+          <nav className="bottom-nav">
+            <NavBtn icon={Home} label="Inicio" active={tab === "inicio"} onClick={() => setTab("inicio")} />
+            <NavBtn icon={CalendarDays} label="Eventos" active={tab === "eventos"} onClick={() => setTab("eventos")} />
+            <NavBtn icon={ListMusic} label="Canciones" active={tab === "canciones"} onClick={() => setTab("canciones")} />
+            <NavBtn icon={Users} label="Equipo" active={tab === "equipo"} onClick={() => setTab("equipo")} />
+            <NavBtn icon={FolderOpen} label="Recursos" active={tab === "recursos"} onClick={() => setTab("recursos")} />
+          </nav>
+        </div>
+      </div>
 
       {modal === "pin" && (
         <Modal onClose={() => setModal(null)}>
@@ -493,6 +538,24 @@ export default function Afina() {
             </a>
           </div>
           <div className="help-author">Hecho por Hugo H. Pacheco</div>
+        </Modal>
+      )}
+
+      {modal === "prefs" && (
+        <Modal onClose={() => setModal(null)}>
+          <h3 className="modal-title">Preferencias</h3>
+          <p className="modal-sub">Cómo se muestran los acordes en toda la biblioteca de canciones.</p>
+          <div className="pref-options">
+            <button className={"pref-opt" + ((config.chordNotation || "american") === "american" ? " active" : "")} onClick={() => setConfig({ ...config, chordNotation: "american" })}>
+              <span className="pref-opt-title">Americano</span>
+              <span className="pref-opt-sub">C, G, Am, D7</span>
+            </button>
+            <button className={"pref-opt" + (config.chordNotation === "nashville" ? " active" : "")} onClick={() => setConfig({ ...config, chordNotation: "nashville" })}>
+              <span className="pref-opt-title">Por números</span>
+              <span className="pref-opt-sub">I, IVm, V7, IIsus2</span>
+            </button>
+          </div>
+          <p className="hint" style={{ marginTop: 10 }}>Con "Por números" los acordes se muestran relativos al tono original de cada canción (sistema Nashville) — no cambian al transportar, que es lo esperado.</p>
         </Modal>
       )}
     </div>
@@ -1075,7 +1138,7 @@ function EventForm({ initial, songs, repertorios, onCancel, onSave }) {
   );
 }
 
-function CancionesTab({ songs, repertorios, screen, setScreen, isAdmin, onSave, onDelete, onToggleFavorite, onSaveRepertorio, onDeleteRepertorio }) {
+function CancionesTab({ songs, repertorios, screen, setScreen, isAdmin, chordNotation, onSave, onDelete, onToggleFavorite, onSaveRepertorio, onDeleteRepertorio }) {
   const [q, setQ] = useState("");
   const [subtab, setSubtab] = useState("biblioteca");
   const [repScreen, setRepScreen] = useState({ mode: "list", id: null });
@@ -1105,7 +1168,7 @@ function CancionesTab({ songs, repertorios, screen, setScreen, isAdmin, onSave, 
   } else if (screen.mode === "detail") {
     const song = songs.find((s) => s.id === screen.id);
     if (!song) return null;
-    return <SongDetail song={song} isAdmin={isAdmin} onBack={() => setScreen({ mode: "list", id: null })} onEdit={() => setScreen({ mode: "form", id: song.id })} onDelete={() => onDelete(song.id)} onToggleFavorite={() => onToggleFavorite(song.id)} />;
+    return <SongDetail song={song} isAdmin={isAdmin} chordNotation={chordNotation} onBack={() => setScreen({ mode: "list", id: null })} onEdit={() => setScreen({ mode: "form", id: song.id })} onDelete={() => onDelete(song.id)} onToggleFavorite={() => onToggleFavorite(song.id)} />;
   }
 
   const base = subtab === "favoritos" ? songs.filter((s) => s.favorite) : songs;
@@ -1258,7 +1321,7 @@ function RepertorioForm({ initial, songs, onCancel, onSave }) {
   );
 }
 
-function SongDetail({ song, isAdmin, onBack, onEdit, onDelete, onToggleFavorite }) {
+function SongDetail({ song, isAdmin, chordNotation, onBack, onEdit, onDelete, onToggleFavorite }) {
   const [steps, setSteps] = useState(0);
   const [keyPicker, setKeyPicker] = useState(false);
   const [perfMode, setPerfMode] = useState(false);
@@ -1319,7 +1382,9 @@ function SongDetail({ song, isAdmin, onBack, onEdit, onDelete, onToggleFavorite 
               {sections.map((s, i) => {
                 const m = sectionMeta(s.name);
                 return (
-                  <button key={s.id} className="section-chip" style={{ borderColor: m.color, color: m.color }} onClick={() => jumpTo(i)}>{m.abbr}</button>
+                  <button key={s.id} className="section-chip" style={{ borderColor: m.color, color: m.color }} onClick={() => jumpTo(i)}>
+                    {m.abbr}{s.repeat > 1 && <span className="chip-repeat">x{s.repeat}</span>}
+                  </button>
                 );
               })}
             </div>
@@ -1331,11 +1396,11 @@ function SongDetail({ song, isAdmin, onBack, onEdit, onDelete, onToggleFavorite 
 
       {sections.map((s, i) => {
         const m = sectionMeta(s.name);
-        const text = transposeLyrics(s.text || "", steps);
+        const text = convertChart(s.text || "", song.key, steps, chordNotation);
         return (
           <div key={s.id} ref={refs[i]} className="section-block">
             <span className="section-pill" style={{ background: m.color + "26", color: m.color, borderColor: m.color + "66" }}>
-              <span className="section-pill-abbr" style={{ borderColor: m.color }}>{m.abbr}</span> {s.name}
+              <span className="section-pill-abbr" style={{ borderColor: m.color }}>{m.abbr}</span> {s.name}{s.repeat > 1 && <span className="pill-repeat">x{s.repeat}</span>}
             </span>
             <div className="chordchart">
               {text.split("\n").map((line, li) => {
@@ -1358,12 +1423,12 @@ function SongDetail({ song, isAdmin, onBack, onEdit, onDelete, onToggleFavorite 
         </Section>
       )}
 
-      {perfMode && <PerformanceMode song={song} sections={sections} steps={steps} onClose={() => setPerfMode(false)} />}
+      {perfMode && <PerformanceMode song={song} sections={sections} steps={steps} chordNotation={chordNotation} onClose={() => setPerfMode(false)} />}
     </div>
   );
 }
 
-function PerformanceMode({ song, sections, steps, onClose }) {
+function PerformanceMode({ song, sections, steps, chordNotation, onClose }) {
   const [speed, setSpeed] = useState(1);
   const [scrolling, setScrolling] = useState(false);
   const containerRef = useRef(null);
@@ -1408,7 +1473,11 @@ function PerformanceMode({ song, sections, steps, onClose }) {
         <div className="perf-section-nav">
           {sections.map((s, i) => {
             const m = sectionMeta(s.name);
-            return <button key={s.id} className="section-chip" style={{ borderColor: m.color, color: m.color }} onClick={() => jumpTo(i)}>{m.abbr}</button>;
+            return (
+              <button key={s.id} className="section-chip" style={{ borderColor: m.color, color: m.color }} onClick={() => jumpTo(i)}>
+                {m.abbr}{s.repeat > 1 && <span className="chip-repeat">x{s.repeat}</span>}
+              </button>
+            );
           })}
         </div>
       )}
@@ -1416,11 +1485,11 @@ function PerformanceMode({ song, sections, steps, onClose }) {
       <div className="perf-body" ref={containerRef}>
         {sections.map((s, i) => {
           const m = sectionMeta(s.name);
-          const text = transposeLyrics(s.text || "", steps);
+          const text = convertChart(s.text || "", song.key, steps, chordNotation);
           return (
             <div key={s.id} ref={refs[i]} className="section-block">
               <span className="section-pill" style={{ background: m.color + "26", color: m.color, borderColor: m.color + "66" }}>
-                <span className="section-pill-abbr" style={{ borderColor: m.color }}>{m.abbr}</span> {s.name}
+                <span className="section-pill-abbr" style={{ borderColor: m.color }}>{m.abbr}</span> {s.name}{s.repeat > 1 && <span className="pill-repeat">x{s.repeat}</span>}
               </span>
               <div className="chordchart perf-chart">
                 {text.split("\n").map((line, li) => {
@@ -1454,9 +1523,17 @@ function SongForm({ initial, onCancel, onSave }) {
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
 
-  function addSection() { setSections([...sections, { id: uid(), name: "Coro", text: "" }]); }
+  function addSection() { setSections([...sections, { id: uid(), name: "Coro", text: "", repeat: 1 }]); }
   function updateSection(id, patch) { setSections(sections.map((s) => (s.id === id ? { ...s, ...patch } : s))); }
   function removeSection(id) { setSections(sections.filter((s) => s.id !== id)); }
+  function moveSection(id, dir) {
+    const i = sections.findIndex((s) => s.id === id);
+    const j = i + dir;
+    if (j < 0 || j >= sections.length) return;
+    const next = [...sections];
+    [next[i], next[j]] = [next[j], next[i]];
+    setSections(next);
+  }
   function addLink() { if (!linkDraft.url.trim()) return; setLinks([...links, { ...linkDraft }]); setLinkDraft({ label: "", url: "" }); }
   function removeLink(i) { setLinks(links.filter((_, idx) => idx !== i)); }
   function convertPaste() {
@@ -1501,13 +1578,19 @@ function SongForm({ initial, onCancel, onSave }) {
         </div>
       )}
 
-      {sections.map((s) => {
+      {sections.map((s, i) => {
         const m = sectionMeta(s.name);
         return (
           <div key={s.id} className="section-edit-block">
             <div className="section-edit-head">
               <span className="section-pill-abbr small" style={{ borderColor: m.color, color: m.color }}>{m.abbr}</span>
               <input className="input" style={{ flex: 1 }} value={s.name} onChange={(e) => updateSection(s.id, { name: e.target.value })} placeholder="Nombre de la sección" />
+              <span className="repeat-field">
+                <span>x</span>
+                <input type="number" min="1" className="mini-input repeat-input" value={s.repeat || 1} onChange={(e) => updateSection(s.id, { repeat: Math.max(1, Number(e.target.value) || 1) })} />
+              </span>
+              <button className="icon-btn-sm" disabled={i === 0} onClick={() => moveSection(s.id, -1)}><ArrowUpCircle size={14} /></button>
+              <button className="icon-btn-sm" disabled={i === sections.length - 1} onClick={() => moveSection(s.id, 1)}><ArrowDownCircle size={14} /></button>
               {sections.length > 1 && <X size={16} className="clickable" onClick={() => removeSection(s.id)} />}
             </div>
             <textarea className="input textarea" value={s.text} onChange={(e) => updateSection(s.id, { text: e.target.value })} placeholder={"[G]Sublime [C]gracia del [D]señor…"} />
@@ -1890,8 +1973,29 @@ const CSS = `
   .member-role { font-size:12px; color:#5b6088; }
   .resource-list { display:flex; flex-direction:column; gap:8px; }
   .resource-row { display:flex; align-items:center; gap:10px; background:#232853; padding:12px 14px; border-radius:11px; text-decoration:none; color:#EDEBFA; font-size:14px; }
+  .app-body { display:flex; }
+  .app-content { flex:1; min-width:0; }
+  .sidebar { display:none; }
   .bottom-nav { position:fixed; bottom:0; left:0; right:0; background:#171a33; border-top:1px solid #2E3358; display:flex; justify-content:space-around; padding:8px 4px calc(8px + env(safe-area-inset-bottom)); z-index:30; }
   .nav-btn { display:flex; flex-direction:column; align-items:center; gap:3px; color:#6b7099; font-size:10px; font-weight:600; padding:4px 8px; border-radius:10px; }
   .nav-btn.active { color:#E4B75B; }
+  .chip-repeat, .pill-repeat { font-size:9px; margin-left:2px; opacity:.85; }
+  .repeat-field { display:flex; align-items:center; gap:3px; font-size:12px; color:#c7cbe8; }
+  .repeat-input { width:36px; text-align:center; }
+  .pref-options { display:flex; flex-direction:column; gap:8px; margin-top:6px; }
+  .pref-opt { display:flex; flex-direction:column; align-items:flex-start; gap:2px; background:#1B1F3B; border:1px solid #3a4066; padding:12px 14px; border-radius:10px; text-align:left; }
+  .pref-opt.active { border-color:#E4B75B; background:#E4B75B1a; }
+  .pref-opt-title { font-weight:700; color:#EDEBFA; font-size:14px; }
+  .pref-opt-sub { font-size:12px; color:#9aa2c9; font-family:'Work Sans',monospace; }
   @media (max-width:480px){ .grid{ grid-template-columns:1fr; } .row2{ flex-direction:column; } .home-grid{ grid-template-columns:1fr; } }
+  @media (min-width:900px){
+    .bottom-nav { display:none; }
+    .app-footer { display:none; }
+    .afina-app { padding-bottom:0; }
+    .sidebar { display:flex; flex-direction:column; align-items:center; gap:6px; width:88px; flex-shrink:0; background:#171a33; border-right:1px solid #2E3358; min-height:calc(100vh - 57px); padding:18px 6px; }
+    .sidebar-brand { margin-bottom:10px; }
+    .sidebar-spacer { flex:1; }
+    .sidebar .nav-btn { width:100%; padding:10px 4px; font-size:10px; }
+    .main { max-width:960px; }
+  }
 `;
