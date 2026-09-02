@@ -58,6 +58,46 @@ function renderChordLine(text) {
   });
 }
 
+// separa una línea "[G]Sublime [C]gracia" en una fila de acordes y una de
+// letra, con cada acorde posicionado arriba de d.nde va (estilo OnStage)
+function splitChordLine(text) {
+  let lyrics = "";
+  let chords = "";
+  let i = 0;
+  while (i < text.length) {
+    if (text[i] === "[") {
+      const end = text.indexOf("]", i);
+      if (end === -1) { lyrics += text[i]; i++; continue; }
+      const chord = text.slice(i + 1, end);
+      while (chords.length < lyrics.length) chords += " ";
+      chords += chord;
+      i = end + 1;
+    } else {
+      lyrics += text[i];
+      i++;
+    }
+  }
+  return { chords, lyrics };
+}
+
+// presets de secciones típicas (abreviatura + color), como en OnStage
+const SECTION_PRESETS = [
+  { match: ["intro"], abbr: "IN", color: "#8FB88F" },
+  { match: ["estrofa", "verso"], abbr: "V", color: "#7EA6D9" },
+  { match: ["preestribillo", "pre-coro", "precoro", "pre estribillo"], abbr: "PC", color: "#D98FD9" },
+  { match: ["coro", "estribillo"], abbr: "C", color: "#E4A15B" },
+  { match: ["interludio"], abbr: "INT", color: "#8FD9C9" },
+  { match: ["puente", "bridge"], abbr: "P", color: "#9D9FE4" },
+  { match: ["final", "outro", "salida"], abbr: "F", color: "#C9C9C9" },
+];
+function sectionMeta(name) {
+  const lower = (name || "").toLowerCase().trim();
+  for (const p of SECTION_PRESETS) if (p.match.some((m) => lower.startsWith(m))) return p;
+  const abbr = (name || "??").trim().slice(0, 2).toUpperCase() || "??";
+  return { abbr, color: "#9aa2c9" };
+}
+
+
 function useShared(key, fallback, enabled = true) {
   const [val, setVal] = useState(fallback);
   const [loaded, setLoaded] = useState(!enabled);
@@ -881,8 +921,23 @@ function CancionesTab({ songs, screen, setScreen, isAdmin, onSave, onDelete }) {
 
 function SongDetail({ song, isAdmin, onBack, onEdit, onDelete }) {
   const [steps, setSteps] = useState(0);
-  const displayKey = steps ? shiftNote(song.key, steps) : song.key;
-  const lyrics = useMemo(() => transposeLyrics(song.lyrics || "", steps), [song.lyrics, steps]);
+  const [keyPicker, setKeyPicker] = useState(false);
+  const displayKey = steps ? transposeChordToken(song.key || "", steps) : (song.key || "");
+  const keyQuality = (song.key || "").match(/^[A-G](?:#|b)?(.*)$/)?.[1] || "";
+  const keyOptions = CHROMA_SHARP.map((n) => n + keyQuality);
+  const sections = song.sections && song.sections.length ? song.sections : (song.lyrics ? [{ id: "legacy", name: "Letra", text: song.lyrics }] : []);
+  const refs = useMemo(() => sections.map(() => React.createRef()), [sections.length]);
+
+  function jumpTo(i) { refs[i]?.current?.scrollIntoView({ behavior: "smooth", block: "start" }); }
+  function pickKey(option) {
+    const optRoot = option.match(/^[A-G](?:#|b)?/)?.[0];
+    const songRoot = (song.key || "").match(/^[A-G](?:#|b)?/)?.[0];
+    const from = noteIndex(songRoot);
+    const to = noteIndex(optRoot);
+    if (from === -1 || to === -1) return;
+    setSteps(to - from);
+  }
+
   return (
     <div>
       <button className="back-btn" onClick={onBack}><ArrowLeft size={16} /> Volver</button>
@@ -893,22 +948,65 @@ function SongDetail({ song, isAdmin, onBack, onEdit, onDelete }) {
             <div className="icon-row"><button className="icon-btn" onClick={onEdit}><Pencil size={15} /></button><button className="icon-btn" onClick={onDelete}><Trash2 size={15} /></button></div>
           </div>
           <h2>{song.title}</h2>
-          <div className="meta">{song.bpm && <span>{song.bpm} BPM</span>}{song.structure && <span>· {song.structure}</span>}</div>
+          <div className="meta">{song.bpm && <span>{song.bpm} BPM</span>}</div>
+
+          <button className="cc-tono-btn" onClick={() => setKeyPicker(!keyPicker)}>
+            Tono: <span className="cc-tono-value">{displayKey || "—"}</span>
+          </button>
+
+          {keyPicker && (
+            <div className="key-picker-panel">
+              <div className="key-picker-half-row">
+                <button className="key-picker-half" onClick={() => setSteps(steps - 1)}>−1/2 tono</button>
+                <button className="key-picker-half" onClick={() => setSteps(steps + 1)}>+1/2 tono</button>
+              </div>
+              <div className="key-picker">
+                {keyOptions.map((n) => (
+                  <button key={n} className={"key-picker-item" + (n === displayKey ? " active" : "")} onClick={() => pickKey(n)}>{n}</button>
+                ))}
+              </div>
+              {steps !== 0 && <button className="secondary-btn cc-reset" onClick={() => setSteps(0)}>Volver al original ({song.key})</button>}
+            </div>
+          )}
+
+          {sections.length > 0 && (
+            <div className="section-nav">
+              {sections.map((s, i) => {
+                const m = sectionMeta(s.name);
+                return (
+                  <button key={s.id} className="section-chip" style={{ borderColor: m.color, color: m.color }} onClick={() => jumpTo(i)}>{m.abbr}</button>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="song-desc">{song.description || "Sin descripción"}</div>
         </div>
       </div>
-      <Section title="Tonalidad" icon={<Music size={16} />}>
-        <div className="transpose-row">
-          <button className="icon-btn" onClick={() => setSteps(steps - 1)}><ArrowDownCircle size={22} /></button>
-          <span className="key-display">{displayKey || "—"}</span>
-          <button className="icon-btn" onClick={() => setSteps(steps + 1)}><ArrowUpCircle size={22} /></button>
-          {steps !== 0 && <button className="secondary-btn" onClick={() => setSteps(0)}>Original</button>}
-        </div>
-      </Section>
-      {song.lyrics && (
-        <Section title="Letra y acordes" icon={<FileText size={16} />}>
-          <div className="lyrics">{lyrics.split("\n").map((line, i) => <div key={i} className="lyrics-line">{renderChordLine(line)}</div>)}</div>
-        </Section>
-      )}
+
+      {sections.map((s, i) => {
+        const m = sectionMeta(s.name);
+        const text = transposeLyrics(s.text || "", steps);
+        return (
+          <div key={s.id} ref={refs[i]} className="section-block">
+            <span className="section-pill" style={{ background: m.color + "26", color: m.color, borderColor: m.color + "66" }}>
+              <span className="section-pill-abbr" style={{ borderColor: m.color }}>{m.abbr}</span> {s.name}
+            </span>
+            <div className="chordchart">
+              {text.split("\n").map((line, li) => {
+                const { chords, lyrics } = splitChordLine(line);
+                return (
+                  <div key={li} className="chordchart-line">
+                    {chords.trim() && <div className="chordchart-chords">{chords}</div>}
+                    <div className="chordchart-lyrics">{lyrics || "\u00A0"}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+
       {(song.links || []).length > 0 && (
         <Section title="Archivos y links" icon={<Paperclip size={16} />}>
           <div className="links-list">{song.links.map((l, i) => <a key={i} href={l.url} target="_blank" rel="noreferrer" className="link-row"><LinkIcon size={13} /> {l.label || l.url}</a>)}</div>
@@ -922,17 +1020,20 @@ function SongForm({ initial, onCancel, onSave }) {
   const [title, setTitle] = useState(initial?.title || "");
   const [key, setKey] = useState(initial?.key || "");
   const [bpm, setBpm] = useState(initial?.bpm || "");
-  const [structure, setStructure] = useState(initial?.structure || "");
-  const [lyrics, setLyrics] = useState(initial?.lyrics || "");
+  const [description, setDescription] = useState(initial?.description || initial?.structure || "");
+  const [sections, setSections] = useState(initial?.sections?.length ? initial.sections : (initial?.lyrics ? [{ id: uid(), name: "Letra", text: initial.lyrics }] : [{ id: uid(), name: "Estrofa", text: "" }]));
   const [links, setLinks] = useState(initial?.links || []);
   const [linkDraft, setLinkDraft] = useState({ label: "", url: "" });
   const [formErr, setFormErr] = useState("");
 
+  function addSection() { setSections([...sections, { id: uid(), name: "Coro", text: "" }]); }
+  function updateSection(id, patch) { setSections(sections.map((s) => (s.id === id ? { ...s, ...patch } : s))); }
+  function removeSection(id) { setSections(sections.filter((s) => s.id !== id)); }
   function addLink() { if (!linkDraft.url.trim()) return; setLinks([...links, { ...linkDraft }]); setLinkDraft({ label: "", url: "" }); }
   function removeLink(i) { setLinks(links.filter((_, idx) => idx !== i)); }
   function submit() {
     if (!title.trim()) { setFormErr("Poné al menos un título."); return; }
-    onSave({ id: initial?.id, title: title.trim(), key: key.trim(), bpm: bpm.trim(), structure: structure.trim(), lyrics, links });
+    onSave({ id: initial?.id, title: title.trim(), key: key.trim(), bpm: bpm.trim(), description: description.trim(), sections, links });
   }
 
   return (
@@ -945,12 +1046,27 @@ function SongForm({ initial, onCancel, onSave }) {
         <div style={{ flex: 1 }}><label className="label">Tonalidad original</label><input className="input" value={key} onChange={(e) => setKey(e.target.value)} placeholder="G" /></div>
         <div style={{ flex: 1 }}><label className="label">BPM</label><input className="input" value={bpm} onChange={(e) => setBpm(e.target.value)} placeholder="72" /></div>
       </div>
-      <label className="label">Estructura</label>
-      <input className="input" value={structure} onChange={(e) => setStructure(e.target.value)} placeholder="Intro - Verso - Coro - Puente - Coro" />
-      <label className="label">Letra y acordes</label>
-      <p className="hint">Escribí los acordes entre corchetes para poder transportarlos, ej: Sublime [G]gracia del [C]señor</p>
-      <textarea className="input textarea tall" value={lyrics} onChange={(e) => setLyrics(e.target.value)} placeholder={"Sublime [G]gracia del [C]señor\nque a mí, pecador, [D]salvó…"} />
-      <label className="label">Archivos y links</label>
+      <label className="label">Descripción (opcional)</label>
+      <input className="input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Notas generales de la canción" />
+
+      <label className="label">Secciones</label>
+      <p className="hint">Escribí los acordes entre corchetes en cada línea, ej: [G]Sublime [C]gracia. Usá nombres como Intro, Estrofa, Preestribillo, Coro, Interludio, Puente — así se colorean solos.</p>
+      {sections.map((s) => {
+        const m = sectionMeta(s.name);
+        return (
+          <div key={s.id} className="section-edit-block">
+            <div className="section-edit-head">
+              <span className="section-pill-abbr small" style={{ borderColor: m.color, color: m.color }}>{m.abbr}</span>
+              <input className="input" style={{ flex: 1 }} value={s.name} onChange={(e) => updateSection(s.id, { name: e.target.value })} placeholder="Nombre de la sección" />
+              {sections.length > 1 && <X size={16} className="clickable" onClick={() => removeSection(s.id)} />}
+            </div>
+            <textarea className="input textarea" value={s.text} onChange={(e) => updateSection(s.id, { text: e.target.value })} placeholder={"[G]Sublime [C]gracia del [D]señor…"} />
+          </div>
+        );
+      })}
+      <button className="secondary-btn" onClick={addSection}><Plus size={15} /> Agregar sección</button>
+
+      <label className="label" style={{ marginTop: 20 }}>Archivos y links</label>
       {links.length > 0 && <div className="chips-wrap">{links.map((l, i) => <span key={i} className="edit-chip">{l.label || l.url} <X size={12} className="clickable" onClick={() => removeLink(i)} /></span>)}</div>}
       <div className="add-row">
         <input className="input" placeholder="Etiqueta (ej: Acordes, Audio)" value={linkDraft.label} onChange={(e) => setLinkDraft({ ...linkDraft, label: e.target.value })} />
@@ -1252,6 +1368,31 @@ const CSS = `
   .lyrics { background:#232853; border-radius:12px; padding:16px 18px; font-family:'Work Sans',monospace; font-size:14px; line-height:1.9; }
   .lyrics-line { white-space:pre-wrap; }
   .chord { color:#E4B75B; font-weight:700; }
+  .transpose-cc-row { display:flex; align-items:center; gap:10px; margin-top:14px; }
+  .cc-arrow { background:#232853; color:#E4B75B; width:34px; height:34px; border-radius:50%; font-size:20px; display:flex; align-items:center; justify-content:center; }
+  .cc-key { font-family:'Fraunces',serif; font-size:22px; font-weight:700; color:#E4B75B; background:#232853; padding:6px 18px; border-radius:10px; min-width:56px; text-align:center; }
+  .cc-reset { padding:0 12px; height:34px; }
+  .cc-tono-btn { margin-top:14px; background:#232853; color:#EDEBFA; padding:10px 16px; border-radius:10px; font-size:15px; font-weight:600; }
+  .cc-tono-value { color:#E4B75B; font-family:'Fraunces',serif; font-weight:700; }
+  .key-picker-panel { margin-top:10px; background:#232853; border-radius:12px; padding:14px; }
+  .key-picker-half-row { display:flex; gap:8px; margin-bottom:12px; }
+  .key-picker-half { flex:1; background:#1B1F3B; color:#EDEBFA; padding:12px; border-radius:10px; font-size:14px; font-weight:600; text-align:center; }
+  .key-picker { display:flex; flex-wrap:wrap; gap:6px; }
+  .key-picker-item { padding:8px 10px; border-radius:8px; font-size:13px; font-weight:600; color:#c7cbe8; background:#1B1F3B; min-width:44px; }
+  .key-picker-item.active { background:#E4B75B; color:#1B1F3B; }
+  .section-nav { display:flex; gap:8px; overflow-x:auto; padding:14px 0 4px; }
+  .section-chip { flex-shrink:0; width:32px; height:32px; border-radius:50%; border:2px solid; font-size:11px; font-weight:700; background:transparent; }
+  .song-desc { font-size:13px; color:#5b6088; margin-top:8px; padding-top:10px; border-top:1px dashed #d8d2bf; }
+  .section-block { margin-top:20px; scroll-margin-top:16px; }
+  .section-pill { display:inline-flex; align-items:center; gap:8px; font-size:13px; font-weight:700; padding:5px 12px 5px 5px; border-radius:20px; border:1px solid; margin-bottom:8px; }
+  .section-pill-abbr { display:flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:50%; border:1.5px solid; font-size:10px; background:#1B1F3B; }
+  .section-pill-abbr.small { width:26px; height:26px; border-radius:8px; font-size:11px; background:#232853; flex-shrink:0; }
+  .chordchart { background:#232853; border-radius:12px; padding:14px 16px; font-family:'Work Sans',monospace; font-size:13px; }
+  .chordchart-line { margin-bottom:4px; }
+  .chordchart-chords { color:#E4B75B; font-weight:700; white-space:pre; line-height:1.2; }
+  .chordchart-lyrics { color:#EDEBFA; white-space:pre; line-height:1.5; }
+  .section-edit-block { background:#232853; border-radius:10px; padding:10px; margin-bottom:10px; }
+  .section-edit-head { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
   .links-list { display:flex; flex-direction:column; gap:8px; }
   .link-row { display:flex; align-items:center; gap:8px; color:#7C93C7; font-size:14px; text-decoration:none; background:#232853; padding:9px 12px; border-radius:9px; }
   .member-list { display:flex; flex-direction:column; gap:14px; }
