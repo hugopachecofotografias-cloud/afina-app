@@ -1493,20 +1493,22 @@ function PerformanceMode({ song, sections, steps, chordNotation, onClose }) {
         <button className="perf-close" onClick={onClose}><X size={20} /></button>
         <div className="perf-title">{song.title}{song.key ? ` · ${transposeChordToken(song.key, steps)}` : ""}</div>
         <div className="perf-controls">
-          <select className="perf-speed" value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
-            <option value={0.5}>0.5x</option>
-            <option value={1}>1x</option>
-            <option value={1.5}>1.5x</option>
-            <option value={2}>2x</option>
-          </select>
-          <button className={"perf-scroll-btn" + (scrolling ? " active" : "")} onClick={() => setScrolling(!scrolling)}>
-            {scrolling ? <><Square size={14} /> Stop</> : <><Play size={14} /> Auto-scroll</>}
-          </button>
           <div className="fontsize-btns">
             <button className="cc-arrow small" onClick={() => setFontSize((f) => Math.max(13, f - 1))}>A-</button>
             <button className="cc-arrow small" onClick={() => setFontSize((f) => Math.min(32, f + 1))}>A+</button>
           </div>
         </div>
+      </div>
+
+      <div className="perf-speed-row">
+        <span className="perf-speed-label">Velocidad</span>
+        <input
+          className="perf-speed-slider"
+          type="range" min="0.25" max="2.75" step="0.25"
+          value={speed}
+          onChange={(e) => setSpeed(Number(e.target.value))}
+        />
+        <span className="perf-speed-value">{speed.toFixed(2).replace(/\.?0+$/, "") || speed}x</span>
       </div>
 
       {sections.length > 0 && (
@@ -1546,6 +1548,10 @@ function PerformanceMode({ song, sections, steps, chordNotation, onClose }) {
           );
         })}
       </div>
+
+      <button className={"perf-play-fab" + (scrolling ? " active" : "")} onClick={() => setScrolling(!scrolling)}>
+        {scrolling ? <Square size={26} /> : <Play size={26} />}
+      </button>
     </div>
   );
 }
@@ -1985,21 +1991,25 @@ const CSS = `
   .section-pill { display:inline-flex; align-items:center; gap:8px; font-size:13px; font-weight:700; padding:5px 12px 5px 5px; border-radius:20px; border:1px solid; margin-bottom:8px; }
   .section-pill-abbr { display:flex; align-items:center; justify-content:center; width:22px; height:22px; border-radius:50%; border:1.5px solid; font-size:10px; background:#1B1F3B; }
   .section-pill-abbr.small { width:26px; height:26px; border-radius:8px; font-size:11px; background:#232853; flex-shrink:0; }
-  .chordchart { background:#232853; border-radius:12px; padding:14px 16px; font-family:'Work Sans',monospace; font-size:13px; }
+  .chordchart { background:#232853; border-radius:12px; padding:14px 16px; font-family:'Work Sans',sans-serif; font-size:13px; }
   .chordchart-line { margin-bottom:4px; }
-  .chordchart-chords { color:#E4B75B; font-weight:700; white-space:pre; line-height:1.2; }
-  .chordchart-lyrics { color:#EDEBFA; white-space:pre; line-height:1.5; }
+  .chordchart-chords { color:#fff; font-family:'Fraunces',serif; font-size:1.35em; font-weight:700; white-space:pre; line-height:1.3; }
+  .chordchart-lyrics { color:#c7cbe8; font-size:0.95em; white-space:pre; line-height:1.6; }
   .perf-trigger { background:#E4B75B26; color:#E4B75B; padding:7px 12px; width:auto; gap:6px; font-size:12px; font-weight:700; }
-  .perf-overlay { position:fixed; inset:0; background:#0F1128; z-index:200; display:flex; flex-direction:column; }
+  .perf-overlay { position:fixed; inset:0; height:100dvh; background:#0F1128; z-index:200; display:flex; flex-direction:column; overflow:hidden; }
   .perf-header { display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid #2E3358; flex-wrap:wrap; }
   .perf-close { background:#232853; color:#EDEBFA; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
   .perf-title { flex:1; font-family:'Fraunces',serif; font-size:17px; font-weight:700; color:#FBF7EC; min-width:120px; }
   .perf-controls { display:flex; align-items:center; gap:8px; }
-  .perf-speed { background:#232853; color:#EDEBFA; border:1px solid #3a4066; border-radius:8px; padding:8px 10px; font-size:13px; font-weight:600; }
-  .perf-scroll-btn { display:flex; align-items:center; gap:6px; background:#E4B75B; color:#1B1F3B; padding:9px 14px; border-radius:9px; font-size:13px; font-weight:700; }
-  .perf-scroll-btn.active { background:#C97C87; color:#1B1F3B; }
+  .perf-speed-row { display:flex; align-items:center; gap:10px; padding:0 16px 12px; flex-shrink:0; }
+  .perf-speed-label { font-size:12px; color:#9aa2c9; white-space:nowrap; }
+  .perf-speed-slider { flex:1; accent-color:#E4B75B; }
+  .perf-speed-value { font-size:13px; font-weight:700; color:#E4B75B; min-width:38px; text-align:right; }
+  .perf-play-fab { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); width:64px; height:64px; border-radius:50%; background:#E4B75B; color:#1B1F3B; display:flex; align-items:center; justify-content:center; box-shadow:0 10px 30px rgba(0,0,0,0.5); z-index:210; opacity:0.5; }
+  .perf-play-fab.active { background:#C97C87; opacity:0.9; }
+  .perf-play-fab:active { opacity:1; }
   .perf-section-nav { display:flex; gap:8px; overflow-x:auto; padding:10px 16px; border-bottom:1px solid #2E3358; flex-shrink:0; }
-  .perf-body { flex:1; overflow-y:auto; padding:20px 24px 60px; max-width:720px; margin:0 auto; width:100%; }
+  .perf-body { flex:1; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch; padding:20px 24px 60px; max-width:720px; margin:0 auto; width:100%; }
   .perf-chart { background:transparent; padding:0; font-size:19px; }
   .perf-chords { font-size:19px; }
   .perf-lyrics { font-size:19px; }
