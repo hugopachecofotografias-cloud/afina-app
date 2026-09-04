@@ -893,7 +893,7 @@ function EventosTab({ events, today, screen, setScreen, isAdmin, songs, repertor
 
   if (screen.mode === "form") {
     const ev = screen.id ? events.find((e) => e.id === screen.id) : null;
-    return <EventForm initial={ev} songs={songs} repertorios={repertorios} onCancel={() => setScreen({ mode: ev ? "detail" : "list", id: screen.id })} onSave={onSave} />;
+    return <EventForm initial={ev} songs={songs} repertorios={repertorios} members={members} onCancel={() => setScreen({ mode: ev ? "detail" : "list", id: screen.id })} onSave={onSave} />;
   }
   if (screen.mode === "detail") {
     const ev = events.find((e) => e.id === screen.id);
@@ -1029,6 +1029,7 @@ function EventDetail({ ev, songs, members, isAdmin, me, attendance, onBack, onEd
                     <span className="setlist-title">{song?.title || s.title}</span>
                     <div className="setlist-sub">
                       {(s.key || song?.key) && <span className="setlist-key">{s.key || song.key}</span>}
+                      {s.singer && <span className="setlist-note">🎤 {s.singer}</span>}
                       {s.prepare && <span className="prep-flag">A sacar</span>}
                       {s.suggestedBy && <span className="setlist-note">sugerida por {s.suggestedBy}</span>}
                     </div>
@@ -1057,7 +1058,7 @@ function AssignPicker({ members, current, onAssign }) {
   );
 }
 
-function EventForm({ initial, songs, repertorios, onCancel, onSave }) {
+function EventForm({ initial, songs, repertorios, members, onCancel, onSave }) {
   const [title, setTitle] = useState(initial?.title || "");
   const [type, setType] = useState(initial?.type || "servicio");
   const [date, setDate] = useState(initial?.date || "");
@@ -1132,9 +1133,13 @@ function EventForm({ initial, songs, repertorios, onCancel, onSave }) {
               <div className="setlist-edit-top"><span className="setlist-num">{i + 1}</span><span style={{ flex: 1 }}>{s.title}</span><X size={14} className="clickable" onClick={() => removeSong(s.id)} /></div>
               <div className="setlist-edit-fields">
                 <input className="mini-input" placeholder="Tonalidad" value={s.key || ""} onChange={(e) => updateSetlistItem(s.id, { key: e.target.value })} />
-                <input className="mini-input" placeholder="Sugerida por" value={s.suggestedBy || ""} onChange={(e) => updateSetlistItem(s.id, { suggestedBy: e.target.value })} />
+                <select className="mini-input" value={s.singer || ""} onChange={(e) => updateSetlistItem(s.id, { singer: e.target.value })}>
+                  <option value="">¿Quién la canta?</option>
+                  {members.map((m) => <option key={m.id} value={m.name}>{m.name}</option>)}
+                </select>
                 <label className="prepare-toggle"><input type="checkbox" checked={!!s.prepare} onChange={(e) => updateSetlistItem(s.id, { prepare: e.target.checked })} /> A sacar</label>
               </div>
+              <input className="mini-input full" placeholder="Sugerida por" value={s.suggestedBy || ""} onChange={(e) => updateSetlistItem(s.id, { suggestedBy: e.target.value })} />
               <input className="input" placeholder="Link de referencia" value={s.refLink || ""} onChange={(e) => updateSetlistItem(s.id, { refLink: e.target.value })} />
             </div>
           ))}
@@ -1905,6 +1910,7 @@ const CSS = `
   .textarea { min-height:70px; resize:vertical; }
   .textarea.tall { min-height:140px; }
   .mini-input { background:#1B1F3B; border:1px solid #3a4066; color:#EDEBFA; padding:6px 8px; border-radius:6px; font-size:12px; flex:1; }
+  .mini-input.full { width:100%; margin-bottom:6px; }
   .row2 { display:flex; gap:12px; }
   .type-row { display:flex; gap:8px; flex-wrap:wrap; }
   .type-chip { padding:8px 14px; border-radius:20px; border:1px solid; font-size:13px; font-weight:600; }
