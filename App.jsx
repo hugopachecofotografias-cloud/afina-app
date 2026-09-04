@@ -11,7 +11,7 @@ import {
   createTeam, joinTeamByCode, getUserTeams, saveUserTeams,
 } from "./supabaseClient";
 
-const FONTS = `@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,500&family=Work+Sans:wght@400;500;600;700&display=swap');`;
+const FONTS = `@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,500&family=Work+Sans:wght@400;500;600;700&family=Manrope:wght@700;800&display=swap');`;
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 const DAYS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
@@ -2064,7 +2064,7 @@ const CSS = `
   .section-pill-abbr.small { width:26px; height:26px; border-radius:8px; font-size:11px; background:#232853; flex-shrink:0; }
   .chordchart { background:#232853; border-radius:12px; padding:14px 16px; font-family:'Work Sans',sans-serif; font-size:13px; }
   .chordchart-line { margin-bottom:4px; }
-  .chordchart-chords { color:#fff; font-family:'Fraunces',serif; font-size:1.35em; font-weight:700; white-space:pre; line-height:1.3; }
+  .chordchart-chords { color:#fff; font-family:'Manrope',sans-serif; font-size:1.65em; font-weight:800; white-space:pre; line-height:1.3; }
   .chordchart-lyrics { color:#c7cbe8; font-size:0.95em; white-space:pre; line-height:1.6; }
   .perf-trigger { background:#E4B75B26; color:#E4B75B; padding:7px 12px; width:auto; gap:6px; font-size:12px; font-weight:700; }
   .perf-overlay { position:fixed; inset:0; height:100dvh; background:#0F1128; z-index:200; display:flex; flex-direction:column; overflow:hidden; }
