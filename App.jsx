@@ -1468,10 +1468,56 @@ function SongDetail({ song, isAdmin, chordNotation, onBack, onEdit, onDelete, on
   );
 }
 
+const TIME_SIGS = ["4/4", "3/4", "2/4", "6/8", "2/2"];
+function beatsForSig(sig) { return Number((sig || "4/4").split("/")[0]) || 4; }
+
+function useMetronome(bpm, beatsPerMeasure, running) {
+  const [beat, setBeat] = useState(0);
+  const audioCtxRef = useRef(null);
+  const intervalRef = useRef(null);
+
+  function click(accent) {
+    try {
+      const ctx = audioCtxRef.current || (audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)());
+      if (ctx.state === "suspended") ctx.resume();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = accent ? 1050 : 720;
+      gain.gain.setValueAtTime(0.5, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.06);
+    } catch {}
+  }
+
+  useEffect(() => {
+    if (!running) { if (intervalRef.current) clearInterval(intervalRef.current); setBeat(0); return; }
+    let count = 0;
+    setBeat(0);
+    click(true);
+    const ms = 60000 / (bpm || 120);
+    intervalRef.current = setInterval(() => {
+      count = (count + 1) % beatsPerMeasure;
+      setBeat(count);
+      click(count === 0);
+    }, ms);
+    return () => clearInterval(intervalRef.current);
+    // eslint-disable-next-line
+  }, [running, bpm, beatsPerMeasure]);
+
+  return beat;
+}
+
 function PerformanceMode({ song, sections, steps, chordNotation, onClose }) {
   const [speed, setSpeed] = useState(1);
   const [scrolling, setScrolling] = useState(false);
   const [fontSize, setFontSize] = useState(19);
+  const [metroOn, setMetroOn] = useState(false);
+  const [bpm, setBpm] = useState(Number(song.bpm) > 0 ? Number(song.bpm) : 120);
+  const [timeSig, setTimeSig] = useState("4/4");
+  const beatsPerMeasure = beatsForSig(timeSig);
+  const currentBeat = useMetronome(bpm, beatsPerMeasure, metroOn);
   const containerRef = useRef(null);
   const rafRef = useRef(null);
   const refs = useMemo(() => sections.map(() => React.createRef()), [sections.length]);
@@ -1514,6 +1560,25 @@ function PerformanceMode({ song, sections, steps, chordNotation, onClose }) {
           onChange={(e) => setSpeed(Number(e.target.value))}
         />
         <span className="perf-speed-value">{speed.toFixed(2).replace(/\.?0+$/, "") || speed}x</span>
+      </div>
+
+      <div className="perf-metro-row">
+        <button className={"perf-metro-btn" + (metroOn ? " active" : "")} onClick={() => setMetroOn(!metroOn)}>
+          {metroOn ? <Square size={13} /> : <Play size={13} />} Metrónomo
+        </button>
+        <div className="perf-metro-dots">
+          {Array.from({ length: beatsPerMeasure }, (_, i) => (
+            <span key={i} className={"perf-metro-dot" + (metroOn && currentBeat === i ? " on" : "") + (i === 0 ? " accent" : "")} />
+          ))}
+        </div>
+        <div className="perf-metro-field">
+          <button className="cc-arrow small" onClick={() => setBpm((b) => Math.max(30, b - 1))}>−</button>
+          <span className="perf-metro-bpm">{bpm} <span className="perf-metro-bpm-label">BPM</span></span>
+          <button className="cc-arrow small" onClick={() => setBpm((b) => Math.min(300, b + 1))}>+</button>
+        </div>
+        <select className="perf-metro-sig" value={timeSig} onChange={(e) => setTimeSig(e.target.value)}>
+          {TIME_SIGS.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
       </div>
 
       {sections.length > 0 && (
@@ -2011,6 +2076,17 @@ const CSS = `
   .perf-speed-label { font-size:12px; color:#9aa2c9; white-space:nowrap; }
   .perf-speed-slider { flex:1; accent-color:#E4B75B; }
   .perf-speed-value { font-size:13px; font-weight:700; color:#E4B75B; min-width:38px; text-align:right; }
+  .perf-metro-row { display:flex; align-items:center; gap:10px; padding:0 16px 14px; flex-wrap:wrap; flex-shrink:0; border-bottom:1px solid #2E3358; padding-bottom:14px; }
+  .perf-metro-btn { display:flex; align-items:center; gap:6px; background:#232853; color:#EDEBFA; padding:8px 12px; border-radius:8px; font-size:12px; font-weight:700; }
+  .perf-metro-btn.active { background:#E4B75B; color:#1B1F3B; }
+  .perf-metro-dots { display:flex; gap:5px; }
+  .perf-metro-dot { width:9px; height:9px; border-radius:50%; background:#3a4066; }
+  .perf-metro-dot.accent { background:#5b6088; }
+  .perf-metro-dot.on { background:#E4B75B; }
+  .perf-metro-field { display:flex; align-items:center; gap:6px; }
+  .perf-metro-bpm { font-family:'Fraunces',serif; font-size:15px; font-weight:700; color:#EDEBFA; min-width:56px; text-align:center; }
+  .perf-metro-bpm-label { font-size:10px; color:#9aa2c9; font-family:'Work Sans',sans-serif; font-weight:600; }
+  .perf-metro-sig { background:#232853; color:#EDEBFA; border:1px solid #3a4066; border-radius:8px; padding:7px 8px; font-size:12px; font-weight:600; }
   .perf-play-fab { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); width:64px; height:64px; border-radius:50%; background:#E4B75B; color:#1B1F3B; display:flex; align-items:center; justify-content:center; box-shadow:0 10px 30px rgba(0,0,0,0.5); z-index:210; opacity:0.5; }
   .perf-play-fab.active { background:#C97C87; opacity:0.9; }
   .perf-play-fab:active { opacity:1; }
