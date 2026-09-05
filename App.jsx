@@ -4,7 +4,7 @@ import {
   Trash2, Pencil, ListMusic, Link as LinkIcon, ArrowLeft, Home, FolderOpen,
   ArrowUpCircle, ArrowDownCircle, Megaphone, ChevronRight, FileText,
   Headphones, Video, Paperclip, Star, CalendarDays, LogOut, Copy, ChevronDown, UserPlus,
-  MessageCircle, Mail, Presentation, Play, Square, ClipboardPaste, Settings,
+  MessageCircle, Mail, Presentation, Play, Square, ClipboardPaste, Settings, Eye, EyeOff,
 } from "lucide-react";
 import {
   supabase, kvGet, kvSet, signInWithGoogle, signOut,
@@ -72,9 +72,31 @@ function romanizeLyrics(text, keyRoot) {
   if (!kr) return text;
   return text.replace(/\[([^\]]+)\]/g, (_, chord) => `[${chordToRoman(chord, kr)}]`);
 }
-// notation: 'american' (transporta con steps) o 'nashville' (números, fijo relativo al tono original)
+// ---------- nombres en español (Do, Re, Mi, Fa, Sol, La, Si) ----------
+const LATIN_NOTES = { C: "Do", D: "Re", E: "Mi", F: "Fa", G: "Sol", A: "La", B: "Si" };
+function noteToLatin(note) {
+  if (!note) return note;
+  const letter = note[0];
+  const accidental = note.slice(1);
+  return (LATIN_NOTES[letter] || letter) + accidental;
+}
+function chordToLatinNotation(token) {
+  const m = token.match(/^([A-G](?:#|b)?)([^/]*)(?:\/([A-G](?:#|b)?))?$/);
+  if (!m) return token;
+  const [, root, rest, bass] = m;
+  let out = noteToLatin(root) + rest;
+  if (bass) out += "/" + noteToLatin(bass);
+  return out;
+}
+function latinizeLyrics(text) {
+  if (!text) return text;
+  return text.replace(/\[([^\]]+)\]/g, (_, chord) => `[${chordToLatinNotation(chord)}]`);
+}
+// notation: 'american' (transporta con steps), 'nashville' (números, fijo
+// relativo al tono original) o 'latin' (Do, Re, Mi... transporta con steps)
 function convertChart(text, songKey, steps, notation) {
   if (notation === "nashville") return romanizeLyrics(text, songKey);
+  if (notation === "latin") return latinizeLyrics(transposeLyrics(text, steps));
   return transposeLyrics(text, steps);
 }
 // pinta un acorde separando la nota del alteración (# o b), que va más chica
@@ -580,6 +602,10 @@ export default function Afina() {
             <button className={"pref-opt" + (config.chordNotation === "nashville" ? " active" : "")} onClick={() => setConfig({ ...config, chordNotation: "nashville" })}>
               <span className="pref-opt-title">Por números</span>
               <span className="pref-opt-sub">I, IVm, V7, IIsus2</span>
+            </button>
+            <button className={"pref-opt" + (config.chordNotation === "latin" ? " active" : "")} onClick={() => setConfig({ ...config, chordNotation: "latin" })}>
+              <span className="pref-opt-title">En español</span>
+              <span className="pref-opt-sub">Do♯m7, Mibm7</span>
             </button>
           </div>
           <p className="hint" style={{ marginTop: 10 }}>Con "Por números" los acordes se muestran relativos al tono original de cada canción (sistema Nashville) — no cambian al transportar, que es lo esperado.</p>
@@ -1359,7 +1385,9 @@ function SongDetail({ song, isAdmin, chordNotation, onBack, onEdit, onDelete, on
   const [keyPicker, setKeyPicker] = useState(false);
   const [perfMode, setPerfMode] = useState(false);
   const [fontSize, setFontSize] = useState(15);
+  const [hideChords, setHideChords] = useState(false);
   const displayKey = steps ? transposeChordToken(song.key || "", steps) : (song.key || "");
+  const displayKeyLabel = chordNotation === "latin" ? chordToLatinNotation(displayKey) : displayKey;
   const keyQuality = (song.key || "").match(/^[A-G](?:#|b)?(.*)$/)?.[1] || "";
   const keyOptions = CHROMA_SHARP.map((n) => n + keyQuality);
   const sections = song.sections && song.sections.length ? song.sections : (song.lyrics ? [{ id: "legacy", name: "Letra", text: song.lyrics }] : []);
@@ -1384,6 +1412,7 @@ function SongDetail({ song, isAdmin, chordNotation, onBack, onEdit, onDelete, on
             <span className="badge" style={{ background: "#7C93C726", color: "#7C93C7", borderColor: "#7C93C766" }}>Canción</span>
             <div className="icon-row">
               <button className="icon-btn" onClick={onToggleFavorite}><Star size={15} fill={song.favorite ? "#E4B75B" : "none"} color={song.favorite ? "#E4B75B" : "#5b6088"} /></button>
+              <button className={"icon-btn perf-trigger" + (hideChords ? " active" : "")} onClick={() => setHideChords(!hideChords)}>{hideChords ? <EyeOff size={15} /> : <Eye size={15} />} {hideChords ? "Mostrar acordes" : "Solo letra"}</button>
               <button className="icon-btn perf-trigger" onClick={() => setPerfMode(true)}><Presentation size={15} /> Modo directo</button>
               <button className="icon-btn" onClick={onEdit}><Pencil size={15} /></button>
               <button className="icon-btn" onClick={onDelete}><Trash2 size={15} /></button>
@@ -1393,7 +1422,7 @@ function SongDetail({ song, isAdmin, chordNotation, onBack, onEdit, onDelete, on
           <div className="meta">{song.artist && <span>{song.artist}</span>}{song.bpm && <span>{song.artist ? "· " : ""}{song.bpm} BPM</span>}</div>
 
           <button className="cc-tono-btn" onClick={() => setKeyPicker(!keyPicker)}>
-            Tono: <span className="cc-tono-value">{displayKey || "—"}</span>
+            Tono: <span className="cc-tono-value">{displayKeyLabel || "—"}</span>
           </button>
 
           {keyPicker && (
@@ -1449,7 +1478,7 @@ function SongDetail({ song, isAdmin, chordNotation, onBack, onEdit, onDelete, on
                 const { chords, lyrics } = splitChordLine(line);
                 return (
                   <div key={li} className="chordchart-line">
-                    {chords.trim() && <div className="chordchart-chords">{renderChordChars(chords)}</div>}
+                    {!hideChords && chords.trim() && <div className="chordchart-chords">{renderChordChars(chords)}</div>}
                     <div className="chordchart-lyrics">{lyrics || "\u00A0"}</div>
                   </div>
                 );
@@ -1515,6 +1544,7 @@ function PerformanceMode({ song, sections, steps, chordNotation, onClose }) {
   const [speed, setSpeed] = useState(1);
   const [scrolling, setScrolling] = useState(false);
   const [fontSize, setFontSize] = useState(19);
+  const [hideChords, setHideChords] = useState(false);
   const [metroOn, setMetroOn] = useState(false);
   const [bpm, setBpm] = useState(Number(song.bpm) > 0 ? Number(song.bpm) : 120);
   const [timeSig, setTimeSig] = useState("4/4");
@@ -1576,6 +1606,7 @@ function PerformanceMode({ song, sections, steps, chordNotation, onClose }) {
         <button className="perf-close" onClick={onClose}><X size={20} /></button>
         <div className="perf-title">{song.title}{song.key ? ` · ${transposeChordToken(song.key, steps)}` : ""}</div>
         <div className="perf-controls">
+          <button className={"cc-arrow small" + (hideChords ? " active" : "")} onClick={() => setHideChords(!hideChords)}>{hideChords ? <EyeOff size={13} /> : <Eye size={13} />}</button>
           <div className="fontsize-btns">
             <button className="cc-arrow small" onClick={() => setFontSize((f) => Math.max(13, f - 1))}>A-</button>
             <button className="cc-arrow small" onClick={() => setFontSize((f) => Math.min(32, f + 1))}>A+</button>
@@ -1640,7 +1671,7 @@ function PerformanceMode({ song, sections, steps, chordNotation, onClose }) {
                   const { chords, lyrics } = splitChordLine(line);
                   return (
                     <div key={li} className="chordchart-line">
-                      {chords.trim() && <div className="chordchart-chords perf-chords">{renderChordChars(chords)}</div>}
+                      {!hideChords && chords.trim() && <div className="chordchart-chords perf-chords">{renderChordChars(chords)}</div>}
                       <div className="chordchart-lyrics perf-lyrics">{lyrics || "\u00A0"}</div>
                     </div>
                   );
@@ -2082,6 +2113,7 @@ const CSS = `
   .transpose-cc-row { display:flex; align-items:center; gap:10px; margin-top:14px; }
   .cc-arrow { background:#232853; color:#E4B75B; width:34px; height:34px; border-radius:50%; font-size:20px; display:flex; align-items:center; justify-content:center; }
   .cc-arrow.small { width:auto; height:32px; padding:0 10px; border-radius:8px; font-size:13px; font-weight:700; }
+  .cc-arrow.active { background:#E4B75B; color:#1B1F3B; }
   .cc-key { font-family:'Fraunces',serif; font-size:22px; font-weight:700; color:#E4B75B; background:#232853; padding:6px 18px; border-radius:10px; min-width:56px; text-align:center; }
   .cc-reset { padding:0 12px; height:34px; }
   .cc-tono-btn { margin-top:14px; background:#232853; color:#EDEBFA; padding:10px 16px; border-radius:10px; font-size:15px; font-weight:600; }
@@ -2107,6 +2139,7 @@ const CSS = `
   .chord-accidental { font-size:1.1em; vertical-align:-0.22em; margin:0 -0.02em; }
   .chordchart-lyrics { color:#c7cbe8; font-family:'Montserrat',sans-serif; font-size:16px; white-space:pre; line-height:1.6; }
   .perf-trigger { background:#E4B75B26; color:#E4B75B; padding:7px 12px; width:auto; gap:6px; font-size:12px; font-weight:700; }
+  .perf-trigger.active { background:#C97C87; color:#1B1F3B; }
   .perf-overlay { position:fixed; top:0; right:0; bottom:0; left:0; height:100vh; height:100dvh; background:#0F1128; z-index:200; display:flex; flex-direction:column; overflow:hidden; }
   .perf-header { display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid #2E3358; flex-wrap:wrap; }
   .perf-close { background:#232853; color:#EDEBFA; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
