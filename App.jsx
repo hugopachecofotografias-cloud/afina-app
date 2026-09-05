@@ -1473,14 +1473,14 @@ function SongDetail({ song, isAdmin, chordNotation, onBack, onEdit, onDelete, on
 const TIME_SIGS = ["4/4", "3/4", "2/4", "6/8", "2/2"];
 function beatsForSig(sig) { return Number((sig || "4/4").split("/")[0]) || 4; }
 
-function useMetronome(bpm, beatsPerMeasure, running) {
+function useMetronome(bpm, beatsPerMeasure, running, audioCtxRef) {
   const [beat, setBeat] = useState(0);
-  const audioCtxRef = useRef(null);
   const intervalRef = useRef(null);
 
   function click(accent) {
     try {
-      const ctx = audioCtxRef.current || (audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)());
+      const ctx = audioCtxRef.current;
+      if (!ctx) return;
       if (ctx.state === "suspended") ctx.resume();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -1519,9 +1519,29 @@ function PerformanceMode({ song, sections, steps, chordNotation, onClose }) {
   const [bpm, setBpm] = useState(Number(song.bpm) > 0 ? Number(song.bpm) : 120);
   const [timeSig, setTimeSig] = useState("4/4");
   const beatsPerMeasure = beatsForSig(timeSig);
-  const currentBeat = useMetronome(bpm, beatsPerMeasure, metroOn);
+  const audioCtxRef = useRef(null);
+  const currentBeat = useMetronome(bpm, beatsPerMeasure, metroOn, audioCtxRef);
   const containerRef = useRef(null);
   const rafRef = useRef(null);
+
+  // el navegador (sobre todo en el celular) solo deja "destrabar" el sonido
+  // si el AudioContext se crea justo en el toque del bot\u00f3n, no despu\u00e9s
+  function toggleMetro() {
+    if (!metroOn) {
+      try {
+        if (!audioCtxRef.current) audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+        const ctx = audioCtxRef.current;
+        if (ctx.state === "suspended") ctx.resume();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        gain.gain.value = 0.0001;
+        osc.connect(gain).connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.01);
+      } catch {}
+    }
+    setMetroOn(!metroOn);
+  }
   const scrollAccRef = useRef(0);
   const refs = useMemo(() => sections.map(() => React.createRef()), [sections.length]);
 
@@ -1568,7 +1588,7 @@ function PerformanceMode({ song, sections, steps, chordNotation, onClose }) {
       </div>
 
       <div className="perf-metro-row">
-        <button className={"perf-metro-btn" + (metroOn ? " active" : "")} onClick={() => setMetroOn(!metroOn)}>
+        <button className={"perf-metro-btn" + (metroOn ? " active" : "")} onClick={toggleMetro}>
           {metroOn ? <Square size={13} /> : <Play size={13} />} Metrónomo
         </button>
         <div className="perf-metro-dots">
@@ -2078,7 +2098,7 @@ const CSS = `
   .chordchart-line { margin-bottom:4px; }
   .chordchart-chords { color:#fff; font-family:'WestCoast','Manrope',sans-serif; font-weight:400; font-size:1.85em; white-space:pre; line-height:1.3; }
   .chord-accidental { font-size:0.92em; vertical-align:-0.22em; margin:0 -0.02em; }
-  .chordchart-lyrics { color:#c7cbe8; font-family:'Montserrat',sans-serif; font-size:18px; white-space:pre; line-height:1.6; }
+  .chordchart-lyrics { color:#c7cbe8; font-family:'Montserrat',sans-serif; font-size:16px; white-space:pre; line-height:1.6; }
   .perf-trigger { background:#E4B75B26; color:#E4B75B; padding:7px 12px; width:auto; gap:6px; font-size:12px; font-weight:700; }
   .perf-overlay { position:fixed; top:0; right:0; bottom:0; left:0; height:100vh; height:100dvh; background:#0F1128; z-index:200; display:flex; flex-direction:column; overflow:hidden; }
   .perf-header { display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid #2E3358; flex-wrap:wrap; }
@@ -2135,7 +2155,7 @@ const CSS = `
   .pref-opt.active { border-color:#E4B75B; background:#E4B75B1a; }
   .pref-opt-title { font-weight:700; color:#EDEBFA; font-size:14px; }
   .pref-opt-sub { font-size:12px; color:#9aa2c9; font-family:'Work Sans',monospace; }
-  @media (max-width:480px){ .grid{ grid-template-columns:1fr; } .row2{ flex-direction:column; } .home-grid{ grid-template-columns:1fr; } .chordchart-chords{ font-size:2.1em; } .chord-accidental{ font-size:0.99em; } .chordchart-lyrics{ font-size:21px; } }
+  @media (max-width:480px){ .grid{ grid-template-columns:1fr; } .row2{ flex-direction:column; } .home-grid{ grid-template-columns:1fr; } .chordchart-chords{ font-size:2.1em; } .chord-accidental{ font-size:0.99em; } .chordchart-lyrics{ font-size:19px; } }
   @media (min-width:900px){
     .bottom-nav { display:none; }
     .app-footer { display:none; }
