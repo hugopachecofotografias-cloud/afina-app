@@ -1532,6 +1532,13 @@ function PerformanceMode({ song, sections, steps, chordNotation, onClose }) {
         if (!audioCtxRef.current) audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
         const ctx = audioCtxRef.current;
         if (ctx.state === "suspended") ctx.resume();
+        // truco cl\u00e1sico para "destrabar" audio en iOS: reproducir un buffer
+        // silencioso real (m\u00e1s confiable que un oscilador solo)
+        const buffer = ctx.createBuffer(1, 1, 22050);
+        const src = ctx.createBufferSource();
+        src.buffer = buffer;
+        src.connect(ctx.destination);
+        src.start(0);
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
         gain.gain.value = 0.0001;
@@ -2096,8 +2103,8 @@ const CSS = `
   .section-pill-abbr.small { width:26px; height:26px; border-radius:8px; font-size:11px; background:#232853; flex-shrink:0; }
   .chordchart { background:#232853; border-radius:12px; padding:14px 16px; font-family:'Work Sans',sans-serif; font-size:13px; }
   .chordchart-line { margin-bottom:4px; }
-  .chordchart-chords { color:#fff; font-family:'WestCoast','Manrope',sans-serif; font-weight:400; font-size:1.85em; white-space:pre; line-height:1.3; }
-  .chord-accidental { font-size:0.92em; vertical-align:-0.22em; margin:0 -0.02em; }
+  .chordchart-chords { color:#fff; font-family:'WestCoast','Manrope',sans-serif; font-weight:700; font-size:1.55em; white-space:pre; line-height:1.3; }
+  .chord-accidental { font-size:1.1em; vertical-align:-0.22em; margin:0 -0.02em; }
   .chordchart-lyrics { color:#c7cbe8; font-family:'Montserrat',sans-serif; font-size:16px; white-space:pre; line-height:1.6; }
   .perf-trigger { background:#E4B75B26; color:#E4B75B; padding:7px 12px; width:auto; gap:6px; font-size:12px; font-weight:700; }
   .perf-overlay { position:fixed; top:0; right:0; bottom:0; left:0; height:100vh; height:100dvh; background:#0F1128; z-index:200; display:flex; flex-direction:column; overflow:hidden; }
@@ -2155,7 +2162,7 @@ const CSS = `
   .pref-opt.active { border-color:#E4B75B; background:#E4B75B1a; }
   .pref-opt-title { font-weight:700; color:#EDEBFA; font-size:14px; }
   .pref-opt-sub { font-size:12px; color:#9aa2c9; font-family:'Work Sans',monospace; }
-  @media (max-width:480px){ .grid{ grid-template-columns:1fr; } .row2{ flex-direction:column; } .home-grid{ grid-template-columns:1fr; } .chordchart-chords{ font-size:2.1em; } .chord-accidental{ font-size:0.99em; } .chordchart-lyrics{ font-size:19px; } }
+  @media (max-width:480px){ .grid{ grid-template-columns:1fr; } .row2{ flex-direction:column; } .home-grid{ grid-template-columns:1fr; } .chordchart-chords{ font-size:1.8em; } .chord-accidental{ font-size:1.15em; } }
   @media (min-width:900px){
     .bottom-nav { display:none; }
     .app-footer { display:none; }
