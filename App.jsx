@@ -2077,7 +2077,7 @@ const CSS = `
   .chord-accidental { font-size:0.85em; vertical-align:-0.22em; margin:0 -0.02em; }
   .chordchart-lyrics { color:#c7cbe8; font-family:'Montserrat',sans-serif; font-size:20px; white-space:pre; line-height:1.6; }
   .perf-trigger { background:#E4B75B26; color:#E4B75B; padding:7px 12px; width:auto; gap:6px; font-size:12px; font-weight:700; }
-  .perf-overlay { position:fixed; inset:0; height:100dvh; background:#0F1128; z-index:200; display:flex; flex-direction:column; overflow:hidden; }
+  .perf-overlay { position:fixed; top:0; right:0; bottom:0; left:0; height:100vh; height:100dvh; background:#0F1128; z-index:200; display:flex; flex-direction:column; overflow:hidden; }
   .perf-header { display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid #2E3358; flex-wrap:wrap; }
   .perf-close { background:#232853; color:#EDEBFA; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
   .perf-title { flex:1; font-family:'Fraunces',serif; font-size:17px; font-weight:700; color:#FBF7EC; min-width:120px; }
@@ -2097,7 +2097,7 @@ const CSS = `
   .perf-metro-bpm { font-family:'Fraunces',serif; font-size:15px; font-weight:700; color:#EDEBFA; min-width:56px; text-align:center; }
   .perf-metro-bpm-label { font-size:10px; color:#9aa2c9; font-family:'Work Sans',sans-serif; font-weight:600; }
   .perf-metro-sig { background:#232853; color:#EDEBFA; border:1px solid #3a4066; border-radius:8px; padding:7px 8px; font-size:12px; font-weight:600; }
-  .perf-play-fab { position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); width:64px; height:64px; border-radius:50%; background:#E4B75B; color:#1B1F3B; display:flex; align-items:center; justify-content:center; box-shadow:0 10px 30px rgba(0,0,0,0.5); z-index:210; opacity:0.5; }
+  .perf-play-fab { position:fixed; top:50%; right:20px; transform:translateY(-50%); width:64px; height:64px; border-radius:50%; background:#E4B75B; color:#1B1F3B; display:flex; align-items:center; justify-content:center; box-shadow:0 10px 30px rgba(0,0,0,0.5); z-index:210; opacity:0.5; }
   .perf-play-fab.active { background:#C97C87; opacity:0.9; }
   .perf-play-fab:active { opacity:1; }
   .perf-section-nav { display:flex; gap:8px; overflow-x:auto; padding:10px 16px; border-bottom:1px solid #2E3358; flex-shrink:0; }
@@ -2132,7 +2132,7 @@ const CSS = `
   .pref-opt.active { border-color:#E4B75B; background:#E4B75B1a; }
   .pref-opt-title { font-weight:700; color:#EDEBFA; font-size:14px; }
   .pref-opt-sub { font-size:12px; color:#9aa2c9; font-family:'Work Sans',monospace; }
-  @media (max-width:480px){ .grid{ grid-template-columns:1fr; } .row2{ flex-direction:column; } .home-grid{ grid-template-columns:1fr; } }
+  @media (max-width:480px){ .grid{ grid-template-columns:1fr; } .row2{ flex-direction:column; } .home-grid{ grid-template-columns:1fr; } .chordchart-chords{ font-size:2.3em; } .chord-accidental{ font-size:0.9em; } .chordchart-lyrics{ font-size:23px; } }
   @media (min-width:900px){
     .bottom-nav { display:none; }
     .app-footer { display:none; }
