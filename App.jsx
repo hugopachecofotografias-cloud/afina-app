@@ -1522,13 +1522,16 @@ function PerformanceMode({ song, sections, steps, chordNotation, onClose }) {
   const currentBeat = useMetronome(bpm, beatsPerMeasure, metroOn);
   const containerRef = useRef(null);
   const rafRef = useRef(null);
+  const scrollAccRef = useRef(0);
   const refs = useMemo(() => sections.map(() => React.createRef()), [sections.length]);
 
   useEffect(() => {
     if (!scrolling) { if (rafRef.current) cancelAnimationFrame(rafRef.current); return; }
+    scrollAccRef.current = containerRef.current ? containerRef.current.scrollTop : 0;
     function step() {
       if (containerRef.current) {
-        containerRef.current.scrollTop += 0.5 * speed;
+        scrollAccRef.current += 0.5 * speed;
+        containerRef.current.scrollTop = scrollAccRef.current;
         const el = containerRef.current;
         if (el.scrollTop + el.clientHeight >= el.scrollHeight - 2) setScrolling(false);
       }
@@ -2073,9 +2076,9 @@ const CSS = `
   .section-pill-abbr.small { width:26px; height:26px; border-radius:8px; font-size:11px; background:#232853; flex-shrink:0; }
   .chordchart { background:#232853; border-radius:12px; padding:14px 16px; font-family:'Work Sans',sans-serif; font-size:13px; }
   .chordchart-line { margin-bottom:4px; }
-  .chordchart-chords { color:#fff; font-family:'WestCoast','Manrope',sans-serif; font-weight:400; font-size:2em; white-space:pre; line-height:1.3; }
-  .chord-accidental { font-size:0.85em; vertical-align:-0.22em; margin:0 -0.02em; }
-  .chordchart-lyrics { color:#c7cbe8; font-family:'Montserrat',sans-serif; font-size:20px; white-space:pre; line-height:1.6; }
+  .chordchart-chords { color:#fff; font-family:'WestCoast','Manrope',sans-serif; font-weight:400; font-size:1.85em; white-space:pre; line-height:1.3; }
+  .chord-accidental { font-size:0.92em; vertical-align:-0.22em; margin:0 -0.02em; }
+  .chordchart-lyrics { color:#c7cbe8; font-family:'Montserrat',sans-serif; font-size:18px; white-space:pre; line-height:1.6; }
   .perf-trigger { background:#E4B75B26; color:#E4B75B; padding:7px 12px; width:auto; gap:6px; font-size:12px; font-weight:700; }
   .perf-overlay { position:fixed; top:0; right:0; bottom:0; left:0; height:100vh; height:100dvh; background:#0F1128; z-index:200; display:flex; flex-direction:column; overflow:hidden; }
   .perf-header { display:flex; align-items:center; gap:12px; padding:14px 16px; border-bottom:1px solid #2E3358; flex-wrap:wrap; }
@@ -2132,7 +2135,7 @@ const CSS = `
   .pref-opt.active { border-color:#E4B75B; background:#E4B75B1a; }
   .pref-opt-title { font-weight:700; color:#EDEBFA; font-size:14px; }
   .pref-opt-sub { font-size:12px; color:#9aa2c9; font-family:'Work Sans',monospace; }
-  @media (max-width:480px){ .grid{ grid-template-columns:1fr; } .row2{ flex-direction:column; } .home-grid{ grid-template-columns:1fr; } .chordchart-chords{ font-size:2.3em; } .chord-accidental{ font-size:0.9em; } .chordchart-lyrics{ font-size:23px; } }
+  @media (max-width:480px){ .grid{ grid-template-columns:1fr; } .row2{ flex-direction:column; } .home-grid{ grid-template-columns:1fr; } .chordchart-chords{ font-size:2.1em; } .chord-accidental{ font-size:0.99em; } .chordchart-lyrics{ font-size:21px; } }
   @media (min-width:900px){
     .bottom-nav { display:none; }
     .app-footer { display:none; }
