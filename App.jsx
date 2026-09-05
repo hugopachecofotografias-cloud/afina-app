@@ -187,7 +187,7 @@ function mergeChordAndLyricLine(chordLine, lyricLine) {
   return result;
 }
 function parsePastedChart(raw) {
-  const lines = (raw || "").replace(/\r\n/g, "\n").split("\n").map((l) => l.replace(/^["'>]+\s*/, ""));
+  const lines = (raw || "").replace(/\r\n/g, "\n").split("\n").map((l) => l.replace(/^["'>]+\s*/, "").replace(/[[\]]/g, ""));
   const sections = [];
   let current = { id: uid(), name: "Letra", text: "" };
   let buffer = [];
@@ -223,13 +223,25 @@ function parsePastedChart(raw) {
   }
   flush();
   if (current.text.trim() || sections.length === 0) sections.push(current);
-  return sections;
+  // si quedaron dos secciones seguidas con el mismo nombre (pasa cuando la
+  // página repite el encabezado con solo un acorde suelto en el medio),
+  // las unimos en una sola
+  const merged = [];
+  sections.forEach((s) => {
+    const prev = merged[merged.length - 1];
+    if (prev && prev.name.trim().toLowerCase() === s.name.trim().toLowerCase()) {
+      prev.text = (prev.text ? prev.text + "\n" : "") + s.text;
+    } else {
+      merged.push(s);
+    }
+  });
+  return merged;
 }
 // versión liviana: solo agrega corchetes a un bloque de texto de UNA sección
 // (sin dividir en secciones), para cuando se escribe/pega directo en el
 // cuadro de texto sin pasar por el botón de convertir
 function autoBracketSectionText(raw) {
-  const lines = (raw || "").replace(/\r\n/g, "\n").split("\n").map((l) => l.replace(/^["'>]+\s*/, ""));
+  const lines = (raw || "").replace(/\r\n/g, "\n").split("\n").map((l) => l.replace(/^["'>]+\s*/, "").replace(/[[\]]/g, ""));
   const out = [];
   let i = 0;
   while (i < lines.length) {
