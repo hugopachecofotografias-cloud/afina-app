@@ -156,6 +156,7 @@ const SECTION_HEADER_WORDS = [
   "intro", "introdu", "verso", "estrofa", "pre-coro", "precoro", "pre-estribillo",
   "preestribillo", "pré-refrão", "prerefrao", "refrão", "refrao", "coro", "estribillo",
   "puente", "bridge", "interludio", "interlúdio", "final", "outro", "solo", "instrumental",
+  "primera parte", "segunda parte", "tercera parte", "cuarta parte", "quinta parte", "parte",
 ];
 function isChordLine(line) {
   const t = (line || "").trim();
@@ -186,7 +187,7 @@ function mergeChordAndLyricLine(chordLine, lyricLine) {
   return result;
 }
 function parsePastedChart(raw) {
-  const lines = (raw || "").replace(/\r\n/g, "\n").split("\n");
+  const lines = (raw || "").replace(/\r\n/g, "\n").split("\n").map((l) => l.replace(/^["'>]+\s*/, ""));
   const sections = [];
   let current = { id: uid(), name: "Letra", text: "" };
   let buffer = [];
@@ -228,7 +229,7 @@ function parsePastedChart(raw) {
 // (sin dividir en secciones), para cuando se escribe/pega directo en el
 // cuadro de texto sin pasar por el botón de convertir
 function autoBracketSectionText(raw) {
-  const lines = (raw || "").replace(/\r\n/g, "\n").split("\n");
+  const lines = (raw || "").replace(/\r\n/g, "\n").split("\n").map((l) => l.replace(/^["'>]+\s*/, ""));
   const out = [];
   let i = 0;
   while (i < lines.length) {
