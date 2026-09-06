@@ -2148,7 +2148,7 @@ const CSS = `
   .section-pill-abbr.small { width:26px; height:26px; border-radius:8px; font-size:11px; background:#232853; flex-shrink:0; }
   .chordchart { background:#232853; border-radius:12px; padding:14px 16px; font-family:'Work Sans',sans-serif; font-size:13px; }
   .chordchart-line { margin-bottom:4px; }
-  .chordchart-chords { color:#fff; font-family:'OneSignature','Manrope',sans-serif; font-weight:400; font-size:1.4em; white-space:pre; line-height:1.3; }
+  .chordchart-chords { color:#fff; font-family:Arial,'Manrope',sans-serif; font-weight:700; font-size:1.4em; white-space:pre; line-height:1.3; }
   .chord-accidental { font-size:1.1em; vertical-align:-0.22em; margin:0 -0.02em; }
   .chordchart-lyrics { color:#c7cbe8; font-family:'Montserrat',sans-serif; font-size:16px; white-space:pre; line-height:1.6; }
   .perf-trigger { background:#E4B75B26; color:#E4B75B; padding:7px 12px; width:auto; gap:6px; font-size:12px; font-weight:700; }
