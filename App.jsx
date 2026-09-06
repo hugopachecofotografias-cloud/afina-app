@@ -1364,15 +1364,29 @@ function RepertorioForm({ initial, songs, onCancel, onSave }) {
   const [name, setName] = useState(initial?.name || "");
   const [artist, setArtist] = useState(initial?.artist || "");
   const [songIds, setSongIds] = useState(initial?.songIds || []);
-  const [q, setQ] = useState("");
+  const [pick, setPick] = useState("");
   const [formErr, setFormErr] = useState("");
 
-  function toggle(id) { setSongIds(songIds.includes(id) ? songIds.filter((i) => i !== id) : [...songIds, id]); }
+  function addSong() {
+    if (!pick || songIds.includes(pick)) return;
+    setSongIds([...songIds, pick]);
+    setPick("");
+  }
+  function removeSong(id) { setSongIds(songIds.filter((i) => i !== id)); }
+  function moveSong(id, dir) {
+    const i = songIds.indexOf(id);
+    const j = i + dir;
+    if (i === -1 || j < 0 || j >= songIds.length) return;
+    const next = [...songIds];
+    [next[i], next[j]] = [next[j], next[i]];
+    setSongIds(next);
+  }
   function submit() {
     if (!name.trim()) { setFormErr("Poné un nombre para el repertorio."); return; }
     onSave({ id: initial?.id, name: name.trim(), artist: artist.trim(), songIds });
   }
-  const filtered = songs.filter((s) => s.title.toLowerCase().includes(q.toLowerCase()));
+  const orderedSongs = songIds.map((id) => songs.find((s) => s.id === id)).filter(Boolean);
+  const availableToAdd = songs.filter((s) => !songIds.includes(s.id));
 
   return (
     <div>
@@ -1382,16 +1396,29 @@ function RepertorioForm({ initial, songs, onCancel, onSave }) {
       <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej: Repertorio de Navidad" />
       <label className="label">Artista (opcional)</label>
       <input className="input" value={artist} onChange={(e) => setArtist(e.target.value)} placeholder="Ej: Miel San Marcos" />
-      <label className="label">Canciones ({songIds.length} elegidas)</label>
-      <input className="input" placeholder="Buscar canción…" value={q} onChange={(e) => setQ(e.target.value)} style={{ marginBottom: 8 }} />
-      <div className="rep-song-pick">
-        {filtered.map((s) => (
-          <label key={s.id} className="rep-song-pick-row">
-            <input type="checkbox" checked={songIds.includes(s.id)} onChange={() => toggle(s.id)} />
-            <span>{s.title}</span>{s.artist && <span className="muted small">· {s.artist}</span>}
-          </label>
-        ))}
-        {filtered.length === 0 && <p className="muted small">No hay canciones que coincidan.</p>}
+      <label className="label">Canciones (en el orden que se van a tocar)</label>
+      {orderedSongs.length > 0 && (
+        <div style={{ marginBottom: 10 }}>
+          {orderedSongs.map((s, i) => (
+            <div key={s.id} className="setlist-edit-row">
+              <div className="setlist-edit-top">
+                <span className="setlist-num">{i + 1}</span>
+                <span style={{ flex: 1 }}>{s.title}{s.artist ? ` · ${s.artist}` : ""}</span>
+                <button className="icon-btn-sm" disabled={i === 0} onClick={() => moveSong(s.id, -1)}><ArrowUpCircle size={14} /></button>
+                <button className="icon-btn-sm" disabled={i === orderedSongs.length - 1} onClick={() => moveSong(s.id, 1)}><ArrowDownCircle size={14} /></button>
+                <X size={16} className="clickable" onClick={() => removeSong(s.id)} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {orderedSongs.length === 0 && <p className="muted small" style={{ marginBottom: 10 }}>Todavía no agregaste canciones.</p>}
+      <div className="add-row">
+        <select className="input" value={pick} onChange={(e) => setPick(e.target.value)}>
+          <option value="">Agregar canción de la biblioteca…</option>
+          {availableToAdd.map((s) => <option key={s.id} value={s.id}>{s.title}{s.artist ? ` (${s.artist})` : ""}</option>)}
+        </select>
+        <button className="secondary-btn" onClick={addSong}><Plus size={15} /></button>
       </div>
       {formErr && <div className="pin-error">{formErr}</div>}
       <button className="primary-btn full" onClick={submit}>{initial ? "Guardar cambios" : "Crear repertorio"}</button>
