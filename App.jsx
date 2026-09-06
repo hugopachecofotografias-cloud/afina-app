@@ -2153,7 +2153,7 @@ const CSS = `
   .chordchart { background:#232853; border-radius:12px; padding:14px 16px; font-family:'Work Sans',sans-serif; font-size:13px; }
   .chordchart-line { margin-bottom:4px; }
   .chordchart-chords { color:#fff; font-family:Arial,'Manrope',sans-serif; font-weight:700; font-size:1.4em; white-space:pre; line-height:1.3; }
-  .chord-accidental { font-size:1.1em; vertical-align:-0.22em; margin:0 -0.02em; }
+  .chord-accidental { font-size:0.55em; vertical-align:sub; margin:0 -0.02em; }
   .chordchart-lyrics { color:#c7cbe8; font-family:'Montserrat',sans-serif; font-size:16px; white-space:pre; line-height:1.6; }
   .perf-trigger { background:#E4B75B26; color:#E4B75B; padding:7px 12px; width:auto; gap:6px; font-size:12px; font-weight:700; }
   .perf-trigger.active { background:#C97C87; color:#1B1F3B; }
@@ -2212,7 +2212,7 @@ const CSS = `
   .pref-opt.active { border-color:#E4B75B; background:#E4B75B1a; }
   .pref-opt-title { font-weight:700; color:#EDEBFA; font-size:14px; }
   .pref-opt-sub { font-size:12px; color:#9aa2c9; font-family:'Work Sans',monospace; }
-  @media (max-width:480px){ .grid{ grid-template-columns:1fr; } .row2{ flex-direction:column; } .home-grid{ grid-template-columns:1fr; } .chordchart-chords{ font-size:1.8em; } .chord-accidental{ font-size:1.15em; } }
+  @media (max-width:480px){ .grid{ grid-template-columns:1fr; } .row2{ flex-direction:column; } .home-grid{ grid-template-columns:1fr; } .chordchart-chords{ font-size:1.8em; } .chord-accidental{ font-size:0.55em; } }
   @media (min-width:900px){
     .bottom-nav { display:none; }
     .app-footer { display:none; }
