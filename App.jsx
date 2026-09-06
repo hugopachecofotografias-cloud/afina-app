@@ -2152,9 +2152,9 @@ const CSS = `
   .section-pill-abbr.small { width:26px; height:26px; border-radius:8px; font-size:11px; background:#232853; flex-shrink:0; }
   .chordchart { background:#232853; border-radius:12px; padding:14px 16px; font-family:'Work Sans',sans-serif; font-size:13px; }
   .chordchart-line { margin-bottom:4px; }
-  .chordchart-chords { color:#fff; font-family:Arial,'Manrope',sans-serif; font-weight:700; font-size:1.4em; white-space:pre; line-height:1.3; }
+  .chordchart-chords { color:#fff; font-family:Arial,'Manrope',sans-serif; font-weight:700; font-size:1.25em; white-space:pre; line-height:1.3; }
   .chord-accidental { font-size:0.7em; vertical-align:super; margin:0 -0.02em; }
-  .chordchart-lyrics { color:#c7cbe8; font-family:'Montserrat',sans-serif; font-size:18px; white-space:pre; line-height:1.6; }
+  .chordchart-lyrics { color:#c7cbe8; font-family:'Montserrat',sans-serif; font-size:20px; white-space:pre; line-height:1.6; }
   .perf-trigger { background:#E4B75B26; color:#E4B75B; padding:7px 12px; width:auto; gap:6px; font-size:12px; font-weight:700; }
   .perf-trigger.active { background:#C97C87; color:#1B1F3B; }
   .perf-overlay { position:fixed; top:0; right:0; bottom:0; left:0; height:100vh; height:100dvh; background:#0F1128; z-index:200; display:flex; flex-direction:column; overflow:hidden; }
@@ -2212,7 +2212,7 @@ const CSS = `
   .pref-opt.active { border-color:#E4B75B; background:#E4B75B1a; }
   .pref-opt-title { font-weight:700; color:#EDEBFA; font-size:14px; }
   .pref-opt-sub { font-size:12px; color:#9aa2c9; font-family:'Work Sans',monospace; }
-  @media (max-width:480px){ .grid{ grid-template-columns:1fr; } .row2{ flex-direction:column; } .home-grid{ grid-template-columns:1fr; } .chordchart-chords{ font-size:1.8em; } .chord-accidental{ font-size:0.7em; } }
+  @media (max-width:480px){ .grid{ grid-template-columns:1fr; } .row2{ flex-direction:column; } .home-grid{ grid-template-columns:1fr; } .chordchart-chords{ font-size:1.6em; } .chord-accidental{ font-size:0.7em; } }
   @media (min-width:900px){
     .bottom-nav { display:none; }
     .app-footer { display:none; }
