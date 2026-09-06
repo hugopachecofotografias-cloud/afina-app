@@ -2154,7 +2154,7 @@ const CSS = `
   .chordchart-line { margin-bottom:4px; }
   .chordchart-chords { color:#fff; font-family:Arial,'Manrope',sans-serif; font-weight:700; font-size:1.4em; white-space:pre; line-height:1.3; }
   .chord-accidental { font-size:0.7em; vertical-align:super; margin:0 -0.02em; }
-  .chordchart-lyrics { color:#c7cbe8; font-family:'Montserrat',sans-serif; font-size:16px; white-space:pre; line-height:1.6; }
+  .chordchart-lyrics { color:#c7cbe8; font-family:'Montserrat',sans-serif; font-size:18px; white-space:pre; line-height:1.6; }
   .perf-trigger { background:#E4B75B26; color:#E4B75B; padding:7px 12px; width:auto; gap:6px; font-size:12px; font-weight:700; }
   .perf-trigger.active { background:#C97C87; color:#1B1F3B; }
   .perf-overlay { position:fixed; top:0; right:0; bottom:0; left:0; height:100vh; height:100dvh; background:#0F1128; z-index:200; display:flex; flex-direction:column; overflow:hidden; }
