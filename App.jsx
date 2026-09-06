@@ -537,6 +537,7 @@ export default function Afina() {
                 me={me} members={members} songs={songs} avisos={avisos} isAdmin={isAdmin}
                 onSetAttendance={(s) => proximoEvento && setMyAttendance(proximoEvento.id, s)}
                 onGoEvent={() => { setTab("eventos"); setScreen({ mode: "detail", id: proximoEvento.id }); }}
+                onOpenSong={(songId) => { setTab("canciones"); setScreen({ mode: "detail", id: songId }); }}
                 onAddAviso={addAviso} onRemoveAviso={removeAviso}
               />
             )}
@@ -775,7 +776,7 @@ function TeamMenu({ team, teams, me, onSwitch, onSelect, onSignOut }) {
   );
 }
 
-function Inicio({ team, events, proximoEvento, attendance, me, members, songs, avisos, isAdmin, onSetAttendance, onGoEvent, onAddAviso, onRemoveAviso }) {
+function Inicio({ team, events, proximoEvento, attendance, me, members, songs, avisos, isAdmin, onSetAttendance, onGoEvent, onOpenSong, onAddAviso, onRemoveAviso }) {
   const myStatus = attendance[me];
   const myAvail = members.find((m) => m.name === me);
   const [avisoDraft, setAvisoDraft] = useState("");
@@ -849,10 +850,11 @@ function Inicio({ team, events, proximoEvento, attendance, me, members, songs, a
           {daySetlist.length === 0 && <p className="muted small" style={{ marginTop: 6 }}>Todavía no se cargó el repertorio de este evento.</p>}
           <div className="prep-list" style={{ marginTop: 8 }}>
             {daySetlist.map((s) => (
-              <div key={s.id} className="prep-item">
+              <div key={s.id} className={"prep-item" + (s.songId ? " clickable" : "")} onClick={() => s.songId && onOpenSong(s.songId)}>
                 <span className="prep-title">{s.title}</span>
                 {s.key && <span className="prep-key">{s.key}</span>}
                 {s.prepare && <span className="prep-flag">A sacar</span>}
+                {s.songId && <ChevronRight size={14} color="#6b7099" />}
               </div>
             ))}
           </div>
@@ -897,10 +899,11 @@ function Inicio({ team, events, proximoEvento, attendance, me, members, songs, a
         <Section title="Canciones que tenés que preparar" icon={<ListMusic size={16} />}>
           <div className="prep-list">
             {songsToPrep.map((s) => (
-              <div key={s.id} className="prep-item">
+              <div key={s.id} className={"prep-item" + (s.songId ? " clickable" : "")} onClick={() => s.songId && onOpenSong(s.songId)}>
                 <span className="prep-title">{s.title}</span>
                 {s.key && <span className="prep-key">{s.key}</span>}
                 {s.prepare && <span className="prep-flag">A sacar</span>}
+                {s.songId && <ChevronRight size={14} color="#6b7099" />}
               </div>
             ))}
           </div>
@@ -2060,6 +2063,7 @@ const CSS = `
   .prep-flag { font-size:11px; color:#C97C87; font-weight:700; background:#1B1F3B; padding:2px 8px; border-radius:6px; }
   .prep-list { display:flex; flex-direction:column; gap:6px; }
   .prep-item { display:flex; align-items:center; gap:10px; background:#232853; padding:9px 12px; border-radius:9px; }
+  .prep-item.clickable { cursor:pointer; }
   .prep-title { flex:1; font-size:14px; font-weight:500; }
   .prep-key { font-size:11px; color:#E4B75B; font-weight:700; background:#1B1F3B; padding:2px 8px; border-radius:6px; }
   .form-title { font-size:24px; margin-bottom:18px; }
