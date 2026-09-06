@@ -548,6 +548,7 @@ export default function Afina() {
                 onSave={upsertEvent} onDelete={deleteEvent}
                 onSetAttendance={setMyAttendance} onClaimRole={claimRole} onAssignRole={assignRole}
                 requireMe={requireMe}
+                onOpenSong={(songId) => { setTab("canciones"); setScreen({ mode: "detail", id: songId }); }}
               />
             )}
 
@@ -926,7 +927,7 @@ function Section({ title, icon, children }) {
   return (<div className="section"><div className="section-title">{icon} {title}</div>{children}</div>);
 }
 
-function EventosTab({ events, today, screen, setScreen, isAdmin, songs, repertorios, members, me, attendance, onSave, onDelete, onSetAttendance, onClaimRole, onAssignRole, requireMe }) {
+function EventosTab({ events, today, screen, setScreen, isAdmin, songs, repertorios, members, me, attendance, onSave, onDelete, onSetAttendance, onClaimRole, onAssignRole, requireMe, onOpenSong }) {
   const [subtab, setSubtab] = useState("proximos");
   const proximos = events.filter((e) => e.date >= today);
   const pasados = [...events].filter((e) => e.date < today).reverse();
@@ -944,6 +945,7 @@ function EventosTab({ events, today, screen, setScreen, isAdmin, songs, repertor
         onBack={() => setScreen({ mode: "list", id: null })}
         onEdit={() => setScreen({ mode: "form", id: ev.id })}
         onDelete={() => onDelete(ev.id)}
+        onOpenSong={onOpenSong}
         onSetAttendance={(s) => onSetAttendance(ev.id, s)}
         onClaimRole={(rid) => onClaimRole(ev.id, rid)}
         onAssignRole={(rid, name) => onAssignRole(ev.id, rid, name)}
@@ -1001,7 +1003,7 @@ function Staff() {
   );
 }
 
-function EventDetail({ ev, songs, members, isAdmin, me, attendance, onBack, onEdit, onDelete, onSetAttendance, onClaimRole, onAssignRole, requireMe }) {
+function EventDetail({ ev, songs, members, isAdmin, me, attendance, onBack, onEdit, onDelete, onOpenSong, onSetAttendance, onClaimRole, onAssignRole, requireMe }) {
   const t = typeInfo(ev.type);
   const counts = { si: 0, no: 0, "tal-vez": 0 };
   Object.values(attendance).forEach((s) => (counts[s] = (counts[s] || 0) + 1));
@@ -1064,7 +1066,7 @@ function EventDetail({ ev, songs, members, isAdmin, me, attendance, onBack, onEd
             {ev.setlist.map((s, i) => {
               const song = songs.find((sg) => sg.id === s.songId);
               return (
-                <div key={s.id} className="setlist-item">
+                <div key={s.id} className={"setlist-item" + (song ? " clickable" : "")} onClick={() => song && onOpenSong(song.id)}>
                   <span className="setlist-num">{i + 1}</span>
                   <div className="setlist-info">
                     <span className="setlist-title">{song?.title || s.title}</span>
@@ -1075,8 +1077,9 @@ function EventDetail({ ev, songs, members, isAdmin, me, attendance, onBack, onEd
                       {s.suggestedBy && <span className="setlist-note">sugerida por {s.suggestedBy}</span>}
                     </div>
                   </div>
+                  {song && <ChevronRight size={15} color="#6b7099" />}
                   {(s.refLink || song?.links?.[0]?.url) && (
-                    <a href={s.refLink || song.links[0].url} target="_blank" rel="noreferrer" className="setlist-link"><LinkIcon size={13} /></a>
+                    <a href={s.refLink || song.links[0].url} target="_blank" rel="noreferrer" className="setlist-link" onClick={(e) => e.stopPropagation()}><LinkIcon size={13} /></a>
                   )}
                 </div>
               );
@@ -2038,6 +2041,7 @@ const CSS = `
   .mini-select { background:#1B1F3B; color:#EDEBFA; border:1px solid #3a4066; border-radius:6px; font-size:12px; padding:4px; }
   .setlist { display:flex; flex-direction:column; gap:6px; }
   .setlist-item { display:flex; align-items:center; gap:10px; background:#232853; padding:9px 12px; border-radius:9px; }
+  .setlist-item.clickable { cursor:pointer; }
   .setlist-num { font-size:12px; color:#6b7099; font-weight:700; min-width:16px; }
   .setlist-info { flex:1; display:flex; flex-direction:column; gap:3px; }
   .setlist-title { font-size:14px; font-weight:500; }
