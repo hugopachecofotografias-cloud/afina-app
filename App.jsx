@@ -1238,6 +1238,10 @@ function CancionesTab({ songs, repertorios, screen, setScreen, isAdmin, chordNot
     setScreen({ mode: "list", id: null });
     setRepScreen({ mode: "list", id: null });
   }
+  function openSongFromRepertorio(songId) {
+    setSubtab("biblioteca");
+    setScreen({ mode: "detail", id: songId });
+  }
 
   if (subtab === "repertorios") {
     if (repScreen.mode === "form") {
@@ -1247,7 +1251,7 @@ function CancionesTab({ songs, repertorios, screen, setScreen, isAdmin, chordNot
     if (repScreen.mode === "detail") {
       const rep = repertorios.find((r) => r.id === repScreen.id);
       if (!rep) return null;
-      return <RepertorioDetail rep={rep} songs={songs} isAdmin={isAdmin}
+      return <RepertorioDetail rep={rep} songs={songs} isAdmin={isAdmin} onOpenSong={openSongFromRepertorio}
         onBack={() => setRepScreen({ mode: "list", id: null })}
         onEdit={() => setRepScreen({ mode: "form", id: rep.id })}
         onDelete={() => { onDeleteRepertorio(rep.id); setRepScreen({ mode: "list", id: null }); }} />;
@@ -1329,7 +1333,7 @@ function RepertorioList({ repertorios, onOpen, onNew }) {
   );
 }
 
-function RepertorioDetail({ rep, songs, isAdmin, onBack, onEdit, onDelete }) {
+function RepertorioDetail({ rep, songs, isAdmin, onBack, onEdit, onDelete, onOpenSong }) {
   const list = (rep.songIds || []).map((id) => songs.find((s) => s.id === id)).filter(Boolean);
   return (
     <div>
@@ -1349,9 +1353,10 @@ function RepertorioDetail({ rep, songs, isAdmin, onBack, onEdit, onDelete }) {
         {list.length === 0 && <p className="muted">Este repertorio todavía no tiene canciones.</p>}
         <div className="setlist">
           {list.map((s, i) => (
-            <div key={s.id} className="setlist-item">
-              <span className="setlist-num">{i + 1}</span>
+            <div key={s.id} className="setlist-item clickable" onClick={() => onOpenSong(s.id)}>
+              <button className="setlist-num-btn" onClick={(e) => { e.stopPropagation(); onOpenSong(s.id); }}>{i + 1}</button>
               <div className="setlist-info"><span className="setlist-title">{s.title}</span>{s.key && <span className="setlist-key">{s.key}</span>}</div>
+              <ChevronRight size={15} color="#6b7099" />
             </div>
           ))}
         </div>
@@ -2081,6 +2086,7 @@ const CSS = `
   .setlist-item { display:flex; align-items:center; gap:10px; background:#232853; padding:9px 12px; border-radius:9px; }
   .setlist-item.clickable { cursor:pointer; }
   .setlist-num { font-size:12px; color:#6b7099; font-weight:700; min-width:16px; }
+  .setlist-num-btn { font-size:12px; color:#1B1F3B; font-weight:700; min-width:22px; height:22px; background:#E4B75B; border-radius:50%; display:flex; align-items:center; justify-content:center; }
   .setlist-info { flex:1; display:flex; flex-direction:column; gap:3px; }
   .setlist-title { font-size:14px; font-weight:500; }
   .setlist-sub { display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
